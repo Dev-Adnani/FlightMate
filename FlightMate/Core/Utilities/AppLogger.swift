@@ -18,4 +18,8 @@ enum AppLogger {
 
     /// Logs related to raw UDP transport and telemetry packet parsing.
     static let telemetry = Logger(subsystem: subsystem, category: "Telemetry")
+
+    /// Logs related to loading and decoding bundled reference data
+    /// (airports, aircraft).
+    static let referenceData = Logger(subsystem: subsystem, category: "ReferenceData")
 }
