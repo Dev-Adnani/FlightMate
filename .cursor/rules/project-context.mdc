@@ -1,0 +1,40 @@
+---
+description: FlightMate project context and coding rules — always read PROJECT_CONTEXT.md before making changes
+alwaysApply: true
+---
+
+# FlightMate Project Context
+
+Before making any change, read `PROJECT_CONTEXT.md` at the repository root.
+It defines what FlightMate is (and is not), its architecture, and its
+coding rules. Treat it as the source of truth for scope and conventions.
+
+## What FlightMate is
+
+A native macOS companion for Aerofly FS 4: live UDP telemetry + AI-powered
+contextual assistance to help users learn aviation and improve their
+flight simulation experience (dashboard, AI instructor, flight phase
+detection, aircraft-specific checklists, airport info, flight history).
+
+## What FlightMate is NOT
+
+Not a flight simulator, ATC replacement, moving map clone, weather
+injector, autopilot, or plugin. Do not build features that drift toward
+these.
+
+## Architecture
+
+SwiftUI, MVVM, `Network.framework`, SwiftData, feature-first architecture,
+dependency injection.
+
+## Coding rules (non-negotiable)
+
+- Never use UIKit.
+- Never use singletons — inject dependencies via initializers.
+- Never hardcode airport data.
+- Keep files under 300 lines; split when a file grows past this.
+- Every service must be testable (protocol-oriented / constructor-injected
+  dependencies, no hidden global state).
+- Prefer protocol-oriented design over concrete-type coupling.
+- UI (Views) must not contain business logic — that belongs in
+  ViewModels/Services in `Core/`.

@@ -11,6 +11,8 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var items: [Item]
+    let telemetryService: TelemetryService
+    let flightContextEngine: FlightContextEngine
 
     var body: some View {
         NavigationSplitView {
@@ -33,7 +35,7 @@ struct ContentView: View {
                 }
             }
         } detail: {
-            Text("Select an item")
+            DashboardView(telemetryService: telemetryService, flightContextEngine: flightContextEngine)
         }
     }
 
@@ -54,6 +56,10 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+    let telemetryService = TelemetryService()
+    ContentView(
+        telemetryService: telemetryService,
+        flightContextEngine: FlightContextEngine(telemetryService: telemetryService)
+    )
+    .modelContainer(for: Item.self, inMemory: true)
 }

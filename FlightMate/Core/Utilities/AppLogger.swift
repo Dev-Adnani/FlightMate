@@ -6,8 +6,16 @@
 //
 
 import Foundation
+import OSLog
 
-/// Placeholder for FlightMate's centralized logging utility.
-/// Implementation (e.g. os.Logger categories) to be added.
+/// Centralized logging for FlightMate, backed by `os.Logger`.
+///
+/// Loggers are split by subsystem/category so output can be filtered easily
+/// in Console.app. Add a new `static let` here per subsystem as more of the
+/// app comes online.
 enum AppLogger {
+    private static let subsystem = Bundle.main.bundleIdentifier ?? "com.flightmate.app"
+
+    /// Logs related to raw UDP transport and telemetry packet parsing.
+    static let telemetry = Logger(subsystem: subsystem, category: "Telemetry")
 }
