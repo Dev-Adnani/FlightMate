@@ -26,6 +26,12 @@ struct FlightMateApp: App {
     /// both injected in `init` below — neither type is a singleton.
     @StateObject private var flightContextEngine: FlightContextEngine
 
+    /// Interprets `flightContextEngine`'s published context into a
+    /// `FlightAnalysis` (flight phase, climb/descent/turn detection,
+    /// nearest airport, etc). Not consumed by any UI yet — available for
+    /// the next milestone (Flight Event Engine) to build on.
+    @StateObject private var flightAnalysisEngine: FlightAnalysisEngine
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
@@ -50,11 +56,13 @@ struct FlightMateApp: App {
         let aeroflySessionService = AeroflySessionService()
         _telemetryService = StateObject(wrappedValue: telemetryService)
         _aeroflySessionService = StateObject(wrappedValue: aeroflySessionService)
-        _flightContextEngine = StateObject(
-            wrappedValue: FlightContextEngine(
-                telemetryService: telemetryService,
-                aeroflySessionService: aeroflySessionService
-            )
+        let flightContextEngine = FlightContextEngine(
+            telemetryService: telemetryService,
+            aeroflySessionService: aeroflySessionService
+        )
+        _flightContextEngine = StateObject(wrappedValue: flightContextEngine)
+        _flightAnalysisEngine = StateObject(
+            wrappedValue: FlightAnalysisEngine(flightContextEngine: flightContextEngine)
         )
     }
 
