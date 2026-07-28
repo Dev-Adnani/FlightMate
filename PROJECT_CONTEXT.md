@@ -93,22 +93,84 @@ dedicated bundled dataset plus, for country, swapping `CountryResolving`'s
 default `UnavailableCountryResolver` implementation — `ResolvedAirport`'s
 shape and every call site stay unchanged.
 
-Not wired into `FlightContextEngine`, `FlightContext`, or any UI yet — this
-layer is a capability the next milestone (Flight Analysis) consumes.
+Not wired into `FlightContextEngine` or `FlightContext` — those stay raw/
+UDP-and-`main.mcf`-only. `FlightAnalysisEngine` (below) is the sole
+consumer, calling `domainResolver.resolve(_:)` itself on every context
+observation. Still not surfaced in any UI yet.
 
-### Planned future pipeline (not yet built)
+### Flight Analysis Engine (built)
+
+`FlightAnalysisEngine` (`Core/FlightAnalysis/`) is the single source of
+aviation knowledge for derived flight state. It observes
+`FlightContextEngine.$context`, resolves the current `AeroflySession` via
+`DomainResolutionService`, looks up the nearest bundled airport via
+`AirportService`, feeds every observation to a `SessionMetricsTracker`, and
+publishes the result as `FlightAnalysis` — `flightPhase` (with
+human-readable `phaseReasons`), `isClimbing`/`isDescending`/`isTurning`,
+`estimatedVerticalSpeedFeetPerMinute`, `estimatedGroundTrackDegreesTrue`,
+cumulative `estimatedSessionDistanceNauticalMiles`/
+`estimatedSessionDurationSeconds`, `nearestAirport` (a `ResolvedAirport`,
+never a bare `Airport`), `distanceToNearestAirportNauticalMiles`,
+`telemetryHealth`, and an `AnalysisConfidence` (level + reasons). No UI
+consumes it yet — it exists for the next milestone (Event Engine) and,
+eventually, the AI instructor to build on. Never invents data: anything
+that can't be derived from what the simulator actually reports is `nil`/
+`.unknown` rather than guessed.
+
+Split, per file, into:
+
+- **`FlightAnalysisService`** (pure `enum`, static functions only) —
+  turns one `FlightContext` observation (plus the previous context/
+  analysis, resolved session, nearest airport, and session metrics) into a
+  new `FlightAnalysis`. No state, no timers, no I/O — trivially unit
+  testable in isolation from the engine.
+- **`FlightAnalysisService+Phase`** — the flight-phase state machine
+  (`determinePhase`), kept in its own file to respect the 300-line rule.
+  Order of checks matters: `landing` (hysteresis) → `parked` → `taxi` →
+  `climb` → `takeoff` → `cruise` → `descent`/`approach` → unchanged
+  fallback. `takeoff` is checked *before* `cruise` so a fast, level ground
+  roll with an unresolved aircraft (cruise altitude unknown) is never
+  misclassified as cruise.
+- **`FlightPerformanceProfile`** — aircraft-specific performance numbers
+  (cruise speed, approach airspeed, cruise altitude) used as phase
+  thresholds when the aircraft is resolved, falling back to generic
+  heuristics (`FlightAnalysisConstants`) when it isn't. Deliberately
+  separate from `FlightAnalysisConstants`, which holds only generic,
+  non-aircraft-specific tuning constants (parked/taxi speed bounds,
+  vertical-speed deadband, turn-rate threshold, noise floors, etc.) that
+  every aircraft shares.
+- **`SessionMetricsTracker`** (`SessionMetricsTracking` protocol) — owns
+  cumulative session distance/duration bookkeeping independently of the
+  engine, so it's swappable/fakeable in tests. Resets when the resolved
+  aircraft or departure airport's *identity* changes (not on a merely
+  transient `nil`, since a field can be briefly unknown between session
+  updates without that meaning a new flight).
+- **`AnalysisConfidence`** — a `.high`/`.low` level plus the specific
+  reasons behind it (e.g. "Aircraft resolved," "Nearest airport known,"
+  "Fresh telemetry," "Telemetry stale"). Every core factor contributes its
+  own reason regardless of overall level, so callers can check "is the
+  aircraft resolved?" directly off the reasons rather than inferring it
+  from the level.
+
+`FlightAnalysisEngine` itself is a thin, stateful orchestrator: it owns no
+interpretation logic, only wiring (Combine subscription, dependency
+injection, carrying `previousContext`/`previousAnalysis` forward). It's
+constructed and injected once in `FlightMateApp`, alongside
+`FlightContextEngine`.
+
+### Planned future pipeline
 
 ```
 Telemetry → Session → Domain Resolution → Flight Analysis → Event Engine → AI
+                                            ^^^^^^^^^^^^^^
+                                              built ✅
 ```
 
-- **Flight Analysis Engine** (next): consumes `ResolvedSession` (rich
-  domain objects, never raw codes) plus live telemetry to answer "what
-  phase of flight is this," "where am I," "what should happen next."
-- **Event Engine** (after that): emits discrete meaningful events
-  ("Aircraft loaded," "Takeoff detected," "Reached cruise," "Landed")
-  instead of consumers polling flight state, so UI/recorder/notifications/AI
-  react to events rather than scattering flight-state logic around the app.
+- **Event Engine** (next): emits discrete meaningful events ("Aircraft
+  loaded," "Takeoff detected," "Reached cruise," "Landed") derived from
+  `FlightAnalysis` transitions, instead of consumers polling flight state,
+  so UI/recorder/notifications/AI react to events rather than scattering
+  flight-state logic around the app.
 
 ## Coding Rules
 

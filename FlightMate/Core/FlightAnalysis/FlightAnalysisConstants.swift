@@ -32,6 +32,6 @@ enum FlightAnalysisConstants {
     static let approachDecelerationToleranceFactor = 1.5
 
     static let minimumSampleIntervalSeconds = 0.5 // debounces vertical-speed/ground-track/turn-rate noise
-    static let distanceNoiseFloorNm = 0.005   // ~30 ft; ignores GPS jitter while stationary
+    static let distanceNoiseFloorNm = 0.01     // ~60 ft; ignores GPS jitter while stationary
     static let telemetryFreshnessWindowSeconds = 3.0
 }

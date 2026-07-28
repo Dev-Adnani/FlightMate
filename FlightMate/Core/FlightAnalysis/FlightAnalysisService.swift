@@ -208,11 +208,14 @@ enum FlightAnalysisService {
     // MARK: - Analysis confidence
 
     /// `.high` requires all three core factors (aircraft resolved,
-    /// nearest airport known, telemetry live). A resolved destination is
-    /// a non-gating bonus reason; a destination that was *referenced but
-    /// failed to resolve* is a penalty reason. A destination that simply
-    /// doesn't exist (no flight plan set) is never penalized -- that's a
-    /// normal, expected state, not a resolution gap.
+    /// nearest airport known, telemetry live). Each factor contributes its
+    /// own reason regardless of overall level -- callers interested in
+    /// "is the aircraft resolved?" shouldn't have to infer that from the
+    /// level, only from whether "Aircraft resolved" is present. A resolved
+    /// destination is a non-gating bonus reason; a destination that was
+    /// *referenced but failed to resolve* is a penalty reason. A
+    /// destination that simply doesn't exist (no flight plan set) is never
+    /// penalized -- that's a normal, expected state, not a resolution gap.
     static func confidence(
         resolvedAircraft: ResolvedAircraft?,
         resolvedDestination: ResolvedAirport?,
@@ -223,22 +226,17 @@ enum FlightAnalysisService {
         let nearestAirportKnown = nearestAirport != nil
         let telemetryLive = telemetryHealth == .live
 
-        if aircraftResolved, nearestAirportKnown, telemetryLive {
-            var reasons = ["Aircraft resolved", "Nearest airport known", "Fresh telemetry"]
-            if resolvedDestination?.status == .resolved {
-                reasons.append("Destination resolved")
-            }
-            return AnalysisConfidence(level: .high, reasons: reasons)
+        var reasons: [String] = [
+            aircraftResolved ? "Aircraft resolved" : "Aircraft unknown",
+            nearestAirportKnown ? "Nearest airport known" : "Nearest airport unknown",
+            telemetryLive ? "Fresh telemetry" : telemetryUnhealthyReason(telemetryHealth)
+        ]
+        if let resolvedDestination {
+            reasons.append(resolvedDestination.status == .resolved ? "Destination resolved" : "Destination unavailable")
         }
 
-        var reasons: [String] = []
-        if !aircraftResolved { reasons.append("Aircraft unknown") }
-        if !nearestAirportKnown { reasons.append("Nearest airport unknown") }
-        if !telemetryLive { reasons.append(telemetryUnhealthyReason(telemetryHealth)) }
-        if let resolvedDestination, resolvedDestination.status != .resolved {
-            reasons.append("Destination unavailable")
-        }
-        return AnalysisConfidence(level: .low, reasons: reasons)
+        let level: AnalysisConfidence.Level = (aircraftResolved && nearestAirportKnown && telemetryLive) ? .high : .low
+        return AnalysisConfidence(level: level, reasons: reasons)
     }
 
     private static func telemetryUnhealthyReason(_ health: TelemetryHealth) -> String {
