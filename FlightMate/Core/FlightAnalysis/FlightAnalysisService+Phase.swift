@@ -29,12 +29,6 @@ extension FlightAnalysisService {
         let previousPhase: FlightPhase
     }
 
-    /// Phases in which the aircraft is considered airborne (or actively
-    /// transitioning off the ground), used to keep the ".takeoff" rule
-    /// from re-firing on every level, fast sample of an already-airborne
-    /// flight (e.g. cruise, which is also level and fast).
-    private static let airbornePhases: Set<FlightPhase> = [.takeoff, .climb, .cruise, .descent, .approach, .landing]
-
     /// Returns the newly determined phase alongside the checkmark-style
     /// reasons that justify it -- see `FlightAnalysis.phaseReasons`.
     ///
@@ -97,7 +91,7 @@ extension FlightAnalysisService {
         // ground roll with an unresolved aircraft (whose cruise altitude
         // is unknown, and therefore can't gate cruise below) isn't
         // swallowed by cruise's own "altitude unknown" escape hatch.
-        if level, groundSpeedKts > FlightAnalysisConstants.taxiUpperBoundKt, !Self.airbornePhases.contains(inputs.previousPhase) {
+        if level, groundSpeedKts > FlightAnalysisConstants.taxiUpperBoundKt, !inputs.previousPhase.isAirborne {
             return (.takeoff, ["Ground speed above taxi range", "Not yet climbing"])
         }
 

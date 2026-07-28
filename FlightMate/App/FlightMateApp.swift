@@ -29,8 +29,16 @@ struct FlightMateApp: App {
     /// Interprets `flightContextEngine`'s published context into a
     /// `FlightAnalysis` (flight phase, climb/descent/turn detection,
     /// nearest airport, etc). Not consumed by any UI yet — available for
-    /// the next milestone (Flight Event Engine) to build on.
+    /// `flightEventEngine` (and, later, AI) to build on.
     @StateObject private var flightAnalysisEngine: FlightAnalysisEngine
+
+    /// Watches `flightAnalysisEngine`'s published analysis over time and
+    /// publishes discrete `FlightEvent`s (aircraft loaded, entered
+    /// cruise, flight completed, etc) whenever state actually
+    /// transitions. Not consumed by any UI yet — available for the next
+    /// milestones (Flight Recorder, Timeline, Checklists, Notifications,
+    /// AI) to build on.
+    @StateObject private var flightEventEngine: FlightEventEngine
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -61,8 +69,10 @@ struct FlightMateApp: App {
             aeroflySessionService: aeroflySessionService
         )
         _flightContextEngine = StateObject(wrappedValue: flightContextEngine)
-        _flightAnalysisEngine = StateObject(
-            wrappedValue: FlightAnalysisEngine(flightContextEngine: flightContextEngine)
+        let flightAnalysisEngine = FlightAnalysisEngine(flightContextEngine: flightContextEngine)
+        _flightAnalysisEngine = StateObject(wrappedValue: flightAnalysisEngine)
+        _flightEventEngine = StateObject(
+            wrappedValue: FlightEventEngine(flightAnalysisEngine: flightAnalysisEngine)
         )
     }
 

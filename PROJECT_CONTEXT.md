@@ -111,11 +111,13 @@ human-readable `phaseReasons`), `isClimbing`/`isDescending`/`isTurning`,
 cumulative `estimatedSessionDistanceNauticalMiles`/
 `estimatedSessionDurationSeconds`, `nearestAirport` (a `ResolvedAirport`,
 never a bare `Airport`), `distanceToNearestAirportNauticalMiles`,
-`telemetryHealth`, and an `AnalysisConfidence` (level + reasons). No UI
-consumes it yet — it exists for the next milestone (Event Engine) and,
-eventually, the AI instructor to build on. Never invents data: anything
-that can't be derived from what the simulator actually reports is `nil`/
-`.unknown` rather than guessed.
+`telemetryHealth`, an `AnalysisConfidence` (level + reasons), and —
+consumed by the Flight Event Engine below — `resolvedAircraft`/
+`resolvedDeparture`/`resolvedDestination` (the session's aircraft/route,
+fully resolved). No UI consumes it yet — it exists for `FlightEventEngine`
+and, eventually, the AI instructor to build on. Never invents data:
+anything that can't be derived from what the simulator actually reports is
+`nil`/`.unknown` rather than guessed.
 
 Split, per file, into:
 
@@ -158,19 +160,92 @@ injection, carrying `previousContext`/`previousAnalysis` forward). It's
 constructed and injected once in `FlightMateApp`, alongside
 `FlightContextEngine`.
 
+### Flight Event Engine (built)
+
+`FlightEventEngine` (`Core/FlightEvents/`) converts continuous
+`FlightAnalysis` state into discrete, one-shot `FlightEvent`s — "the
+aircraft just entered cruise," not "the aircraft is currently in cruise."
+It consumes `FlightAnalysisEngine.$analysis` *only*: never raw telemetry,
+never `main.mcf`, never `FlightContext`, and it never duplicates any of
+`FlightAnalysisService`'s phase-detection logic — it only watches
+`FlightAnalysis`'s already-published values for changes over time.
+
+Split, mirroring the `FlightAnalysisEngine`/`FlightAnalysisService` split:
+
+- **`FlightEventDetectionService`** (pure `enum`) — given the previous and
+  current `FlightAnalysis` plus a small carried-forward `DetectionState`
+  (an aircraft-identity latch, a telemetry-loss latch, an
+  airborne-this-session latch), returns every event that transition
+  produced (zero, one, or several) and the updated state. No state of its
+  own, no I/O — trivially unit testable.
+- **`FlightEventEngine`** (stateful `ObservableObject`) — owns no
+  interpretation logic, only Combine wiring: subscribes to
+  `flightAnalysisEngine.$analysis`, threads `DetectionState` across
+  observations, and turns each detected event into a `FlightEvent`
+  (`UUID`, timestamp, severity, the full `FlightAnalysis` snapshot).
+
+**Initial event set** (11 cases, see `FlightEventType`): `aircraftLoaded`,
+`aircraftChanged`, `enteredTaxi`, `takeoffDetected`, `enteredCruise`,
+`enteredDescent`, `enteredApproach`, `landingDetected`, `flightCompleted`,
+`telemetryLost`, `telemetryRecovered`. Naming convention: phases the
+aircraft *dwells in* use `entered*` (so a future `exited*` counterpart
+reads naturally); genuinely momentary occurrences keep a plain name.
+
+**Duplicate prevention** — every rule is transition-based (`previous` vs.
+`current`), never level-based, so an event fires exactly once per
+transition:
+
+- 6 of the 11 events are driven by one static `[FlightPhase:
+  FlightEventType]` map — entering a mapped phase from any other phase
+  fires the mapped event once. Adding a future phase-entry event is a
+  one-line map addition.
+- `aircraftLoaded`/`aircraftChanged` compare aircraft *codes*, not full
+  `ResolvedAircraft` equality, and tolerate a transient `nil` (a `main.mcf`
+  re-parse momentarily lacking a selection) without emitting anything or
+  clearing the last-known aircraft — mirrors `SessionMetricsTracker`'s
+  existing transient-nil tolerance.
+- `flightCompleted` fires only when `flightPhase` reaches `.parked` *and*
+  the aircraft was airborne (`FlightPhase.isAirborne`, the same shared
+  property `FlightAnalysisService+Phase`'s takeoff guard uses) at some
+  point since the last completion, via a one-shot latch that resets once
+  consumed — so taxiing, a touch-and-go, or a short ground stop never
+  falsely report a completed flight.
+- `telemetryRecovered` only fires after a genuine `telemetryLost`, not on
+  the very first `.acquiring → .live` connection at startup (which has
+  nothing to "recover" from).
+
+**History vs. publisher** — `FlightEventEngine` is a detector, not a
+permanent store. `events: [FlightEvent]` is a *bounded* rolling history
+(newest last, default last 500, oldest dropped past that), safe for
+multi-hour sessions. `eventPublisher: AnyPublisher<FlightEvent, Never>`
+fires every event immediately and unconditionally, regardless of the
+history bound — the hook a future Flight Recorder subscribes to for
+permanent persistence.
+
+**Severity** — every `FlightEvent` carries a `FlightEventSeverity`
+(`.info`/`.warning`/`.critical`) via `FlightEventType.defaultSeverity`.
+Every event today is `.info`, even ones that could later warrant
+`.warning` (e.g. `telemetryLost`) — reclassifying an existing event is a
+one-line change in that single `switch` whenever a future milestone
+actually introduces a severity-driven consumer (notifications, AI tone).
+
+Not surfaced in any UI yet — constructed and injected once in
+`FlightMateApp`, alongside `FlightAnalysisEngine`.
+
 ### Planned future pipeline
 
 ```
-Telemetry → Session → Domain Resolution → Flight Analysis → Event Engine → AI
-                                            ^^^^^^^^^^^^^^
-                                              built ✅
+Telemetry → Session → Domain Resolution → Flight Analysis → Flight Events → Context Builder → AI
+                                                              ^^^^^^^^^^^^^
+                                                                built ✅
 ```
 
-- **Event Engine** (next): emits discrete meaningful events ("Aircraft
-  loaded," "Takeoff detected," "Reached cruise," "Landed") derived from
-  `FlightAnalysis` transitions, instead of consumers polling flight state,
-  so UI/recorder/notifications/AI react to events rather than scattering
-  flight-state logic around the app.
+- **Prompt Context Builder** (next): combines `FlightAnalysis`,
+  `FlightEvent`(s), and `ResolvedSession` into one compact, structured AI
+  context object (aircraft/livery/phase/departure/destination/nearest
+  airport/distance remaining/recent events) — so the eventual AI
+  instructor consumes a clean aviation summary and never sees raw
+  telemetry or has to reconstruct flight state itself.
 
 ## Coding Rules
 

@@ -31,6 +31,27 @@ struct FlightAnalysis: Equatable {
     var isDescending: Bool = false
     var isTurning: Bool = false
 
+    /// The currently selected aircraft, fully resolved into reference
+    /// data -- `nil` only if the session itself has no aircraft selection
+    /// at all yet. Published here (rather than requiring consumers to
+    /// resolve `AeroflySession` themselves) so the Flight Event Engine
+    /// can detect aircraft-identity changes from `FlightAnalysis` alone,
+    /// consistent with the rule that everything above Domain Resolution
+    /// consumes resolved objects only.
+    var resolvedAircraft: ResolvedAircraft?
+
+    /// The session's departure airport/runway, fully resolved -- `nil`
+    /// only if the session itself has no departure reference yet. Not
+    /// consumed by anything in this milestone; published for future
+    /// route-aware events (e.g. a departure-changed event) and the
+    /// planned Prompt Context Builder.
+    var resolvedDeparture: ResolvedAirport?
+
+    /// The session's destination airport/runway, fully resolved -- `nil`
+    /// if no destination is set (no flight plan). Same rationale as
+    /// `resolvedDeparture`.
+    var resolvedDestination: ResolvedAirport?
+
     /// Derived from consecutive altitude samples. `nil` until at least two
     /// samples spaced `FlightAnalysisConstants.minimumSampleIntervalSeconds`
     /// apart have been observed.
