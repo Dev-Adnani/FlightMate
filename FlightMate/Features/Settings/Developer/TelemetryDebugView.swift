@@ -3,7 +3,9 @@
 //  FlightMate
 //
 //  A minimal debug view for verifying that raw UDP telemetry is being
-//  received from Aerofly FS 4.
+//  received from Aerofly FS 4. Lives under Settings > Developer -- see
+//  DeveloperToolsView -- not on the main Dashboard, which now shows
+//  ConnectionStatusCard instead.
 //
 
 import SwiftUI
@@ -12,15 +14,15 @@ import SwiftUI
 /// listener is bound, how many packets have arrived, and when the last one
 /// was received.
 ///
-/// This view intentionally shows no *parsed* flight data — telemetry
-/// parsing is not implemented yet. It exists purely to make the transport
-/// layer observable while it is being built.
+/// Internal diagnostics only -- not intended for end users. Useful for
+/// debugging telemetry issues and verifying packet formats when Aerofly
+/// updates.
 struct TelemetryDebugView: View {
     @ObservedObject var telemetryService: TelemetryService
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Telemetry Debug")
+            Text("Raw Telemetry")
                 .font(.headline)
 
             Grid(alignment: .leading, verticalSpacing: 8) {

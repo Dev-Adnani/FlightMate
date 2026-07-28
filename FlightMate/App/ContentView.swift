@@ -14,6 +14,7 @@ struct ContentView: View {
     let telemetryService: TelemetryService
     let flightContextEngine: FlightContextEngine
     let flightAnalysisEngine: FlightAnalysisEngine
+    let flightEventEngine: FlightEventEngine
     let flightHistoryEngine: FlightHistoryEngine
     let mapTrailService: MapTrailService
 
@@ -36,7 +37,12 @@ struct ContentView: View {
     private func destinationView(for destination: NavigationDestination) -> some View {
         switch destination {
         case .dashboard:
-            DashboardView(telemetryService: telemetryService, flightContextEngine: flightContextEngine)
+            DashboardView(
+                flightContextEngine: flightContextEngine,
+                flightAnalysisEngine: flightAnalysisEngine,
+                flightEventEngine: flightEventEngine,
+                flightHistoryEngine: flightHistoryEngine
+            )
         case .movingMap:
             MovingMapView(
                 flightContextEngine: flightContextEngine,
@@ -50,7 +56,12 @@ struct ContentView: View {
         case .aircraft:
             AircraftView()
         case .settings:
-            SettingsView()
+            SettingsView(
+                telemetryService: telemetryService,
+                flightContextEngine: flightContextEngine,
+                flightAnalysisEngine: flightAnalysisEngine,
+                flightEventEngine: flightEventEngine
+            )
         }
     }
 }
@@ -68,6 +79,7 @@ struct ContentView: View {
         telemetryService: telemetryService,
         flightContextEngine: flightContextEngine,
         flightAnalysisEngine: flightAnalysisEngine,
+        flightEventEngine: flightEventEngine,
         flightHistoryEngine: flightHistoryEngine,
         mapTrailService: MapTrailService(
             flightContextEngine: flightContextEngine,

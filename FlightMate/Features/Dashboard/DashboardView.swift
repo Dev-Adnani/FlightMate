@@ -2,40 +2,51 @@
 //  DashboardView.swift
 //  FlightMate
 //
-//  Primary at-a-glance view of the current flight. UI to be designed.
+//  FlightMate's primary workspace -- the screen a pilot keeps open on a
+//  second monitor while flying. A calm, glanceable, card-based summary of
+//  the current flight; see PROJECT_CONTEXT.md and this milestone's design
+//  philosophy for the "answer these questions in under 5 seconds" goal.
 //
 
 import SwiftUI
 
 /// Root view for the Dashboard feature.
 ///
-/// Currently hosts `TelemetryDebugView` and `FlightContextDebugView` so
-/// the telemetry/flight-context pipelines are observable while they're
-/// being built. Real dashboard content will replace this once there's
-/// something more meaningful to show than raw debug data.
-/// `FlightHistoryDebugView` now lives under its own "Flight History"
-/// destination -- see `FlightHistoryView`.
+/// Purely a layout: every card renders its own `@Published` model from
+/// `viewModel` and contains no business logic of its own. Uses an adaptive
+/// `LazyVGrid` (never fixed pixel positions) so cards reflow naturally as
+/// the window resizes, from a single column up to a wide desktop layout.
 struct DashboardView: View {
     @StateObject private var viewModel: DashboardViewModel
 
+    private let columns = [GridItem(.adaptive(minimum: Theme.Layout.minCardWidth), spacing: Theme.Spacing.cardGap)]
+
     init(
-        telemetryService: TelemetryService,
-        flightContextEngine: FlightContextEngine
+        flightContextEngine: FlightContextEngine,
+        flightAnalysisEngine: FlightAnalysisEngine,
+        flightEventEngine: FlightEventEngine,
+        flightHistoryEngine: FlightHistoryEngine
     ) {
         _viewModel = StateObject(
             wrappedValue: DashboardViewModel(
-                telemetryService: telemetryService,
-                flightContextEngine: flightContextEngine
+                flightContextEngine: flightContextEngine,
+                flightAnalysisEngine: flightAnalysisEngine,
+                flightEventEngine: flightEventEngine,
+                flightHistoryEngine: flightHistoryEngine
             )
         )
     }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                TelemetryDebugView(telemetryService: viewModel.telemetryService)
-                Divider()
-                FlightContextDebugView(flightContextEngine: viewModel.flightContextEngine)
+            LazyVGrid(columns: columns, spacing: Theme.Spacing.cardGap) {
+                AircraftCard(model: viewModel.aircraft)
+                FlightPhaseCard(model: viewModel.flightPhase)
+                NavigationCard(model: viewModel.navigation)
+                TelemetryCard(model: viewModel.telemetry)
+                FlightDurationCard(model: viewModel.flightDuration)
+                RecentEventsCard(model: viewModel.recentEvents)
+                ConnectionStatusCard(model: viewModel.connectionStatus)
             }
             .padding()
         }
@@ -49,8 +60,13 @@ struct DashboardView: View {
         telemetryService: telemetryService,
         aeroflySessionService: AeroflySessionService()
     )
+    let flightAnalysisEngine = FlightAnalysisEngine(flightContextEngine: flightContextEngine)
+    let flightEventEngine = FlightEventEngine(flightAnalysisEngine: flightAnalysisEngine)
     DashboardView(
-        telemetryService: telemetryService,
-        flightContextEngine: flightContextEngine
+        flightContextEngine: flightContextEngine,
+        flightAnalysisEngine: flightAnalysisEngine,
+        flightEventEngine: flightEventEngine,
+        flightHistoryEngine: FlightHistoryEngine(flightEventEngine: flightEventEngine)
     )
+    .frame(width: 900, height: 700)
 }

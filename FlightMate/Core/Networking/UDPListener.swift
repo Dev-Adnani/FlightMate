@@ -72,6 +72,29 @@ nonisolated final class UDPListener: @unchecked Sendable {
         }
     }
 
+    /// Distinguishes a fatal, whole-listener failure from a failure isolated
+    /// to a single sender's pseudo-connection, so `onFailure` observers can
+    /// tell whether the entire listener is down or just one sender was
+    /// dropped while the listener keeps running normally for everyone else.
+    ///
+    /// This matters in practice: when two processes race to bind the same
+    /// UDP port (see `allowLocalEndpointReuse` below), the listener-level
+    /// bind can succeed for both, but the OS then refuses to let more than
+    /// one of them "connect" a per-sender socket to the exact same remote
+    /// endpoint — surfacing as a `.connection`-scoped `EADDRINUSE` for one
+    /// packet, not a `.listener`-scoped failure. That single sender is
+    /// unaffected the moment its next packet re-triggers `accept(_:)`, so
+    /// treating it as fatal to the whole service would be misleading.
+    enum FailureScope {
+        /// The listener itself failed. No further packets can be received
+        /// until `start(port:)` is called again.
+        case listener
+        /// One sender's pseudo-connection failed. The listener is still
+        /// bound and healthy — the next packet from that sender (or any
+        /// other) is received normally.
+        case connection
+    }
+
     // MARK: - Callbacks
 
     /// Invoked once for every raw datagram received.
@@ -87,8 +110,9 @@ nonisolated final class UDPListener: @unchecked Sendable {
 
     /// Invoked when the listener or one of its per-sender connections fails.
     /// This does not automatically stop the listener; call `stop()` if a
-    /// failure should be treated as terminal.
-    var onFailure: ((ListenerError) -> Void)?
+    /// failure should be treated as terminal. `scope` tells the caller
+    /// which of those two cases this is — see `FailureScope`.
+    var onFailure: ((ListenerError, FailureScope) -> Void)?
 
     // MARK: - Private state
 
@@ -165,7 +189,7 @@ nonisolated final class UDPListener: @unchecked Sendable {
     private func handleStateChange(_ state: NWListener.State) {
         onStateChange?(state)
         if case .failed(let error) = state {
-            onFailure?(.transport(error))
+            onFailure?(.transport(error), .listener)
         }
     }
 
@@ -184,7 +208,7 @@ nonisolated final class UDPListener: @unchecked Sendable {
         connection.stateUpdateHandler = { [weak self, weak connection] state in
             switch state {
             case .failed(let error):
-                self?.onFailure?(.transport(error))
+                self?.onFailure?(.transport(error), .connection)
                 connection?.cancel()
                 self?.connections.removeValue(forKey: id)
             case .cancelled:
@@ -209,7 +233,7 @@ nonisolated final class UDPListener: @unchecked Sendable {
             }
 
             if let error {
-                self.onFailure?(.transport(error))
+                self.onFailure?(.transport(error), .connection)
                 connection?.cancel()
                 return
             }

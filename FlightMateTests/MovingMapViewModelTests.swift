@@ -259,7 +259,7 @@ private final class MutableClockBox {
 /// `MapTrailServiceTests.waitUntil`.
 @MainActor
 private func waitUntil(
-    timeout: Duration = .seconds(15),
+    timeout: Duration = .seconds(10),
     _ condition: @MainActor () -> Bool
 ) async throws {
     let deadline = ContinuousClock.now + timeout

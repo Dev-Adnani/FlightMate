@@ -3,17 +3,20 @@
 //  FlightMate
 //
 //  A minimal debug view for verifying that XGPS/XATT telemetry is being
-//  combined correctly into FlightContext.
+//  combined correctly into FlightContext, and that main.mcf session state
+//  is parsing as expected. Lives under Settings > Developer -- see
+//  DeveloperToolsView -- not on the main Dashboard, which now shows
+//  ConnectionStatusCard and NavigationCard instead.
 //
 
 import SwiftUI
 
 /// Shows the combined `FlightContext` published by `FlightContextEngine`:
-/// position, attitude, ground speed, connection health, and when it was
-/// last updated.
+/// position, attitude, ground speed, connection health, session state, and
+/// when it was last updated.
 ///
-/// Like `TelemetryDebugView`, this exists purely to make an in-progress
-/// pipeline observable — it is not the eventual Dashboard UI.
+/// Internal diagnostics only -- not intended for end users. Useful for
+/// diagnosing parsing problems and testing new Aerofly versions.
 struct FlightContextDebugView: View {
     @ObservedObject var flightContextEngine: FlightContextEngine
 
@@ -21,7 +24,7 @@ struct FlightContextDebugView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Flight Context Debug")
+            Text("Flight Context")
                 .font(.headline)
 
             Grid(alignment: .leading, verticalSpacing: 8) {
@@ -74,7 +77,7 @@ struct FlightContextDebugView: View {
 
             Divider()
 
-            Text("Aerofly Session (main.mcf)")
+            Text("Session State (main.mcf)")
                 .font(.headline)
 
             Grid(alignment: .leading, verticalSpacing: 8) {

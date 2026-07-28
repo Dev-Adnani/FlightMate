@@ -169,9 +169,9 @@ final class TelemetryService: ObservableObject {
                 self?.handleStateChange(state)
             }
         }
-        listener.onFailure = { [weak self] error in
+        listener.onFailure = { [weak self] error, scope in
             Task { @MainActor in
-                self?.handleFailure(error)
+                self?.handleFailure(error, scope: scope)
             }
         }
     }
@@ -199,7 +199,14 @@ final class TelemetryService: ObservableObject {
         }
     }
 
-    private func handleFailure(_ error: UDPListener.ListenerError) {
+    /// Only a `.listener`-scoped failure means the whole service is down —
+    /// a `.connection`-scoped failure (e.g. one sender's pseudo-connection
+    /// hitting `EADDRINUSE` because another process is racing for the same
+    /// port) is isolated to that one sender and does not affect the
+    /// listener's ability to keep receiving from anyone else, so it must
+    /// not be allowed to flip `status` away from `.listening`.
+    private func handleFailure(_ error: UDPListener.ListenerError, scope: UDPListener.FailureScope) {
+        guard scope == .listener else { return }
         status = .failed(error.localizedDescription)
     }
 }

@@ -74,27 +74,14 @@ struct MapTrailServiceTests {
         #expect(trailService.trail.last?.coordinate.longitude == 72.9754)
     }
 
-    @Test func rapidNearlyIdenticalPositionsAreNotAllRecorded() async throws {
-        let engines = makeEngines()
-        let trailService = MapTrailService(
-            flightContextEngine: engines.flightContextEngine,
-            flightHistoryEngine: engines.historyEngine,
-            minimumDistanceNauticalMiles: 0.05,
-            minimumIntervalSeconds: 3
-        )
-
-        engines.domainResolver.resolvedSessionToReturn = Self.resolvedSession(aircraftCode: "a320_neo")
-        engines.listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,11.0,314.1,0.2".utf8))
-        try await waitUntil { !trailService.trail.isEmpty }
-
-        // Same coordinate, sent immediately again -- both distance and
-        // elapsed time are effectively zero, so this must not append a
-        // second, near-duplicate point.
-        engines.listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,12.0,314.1,0.2".utf8))
-        try await Task.sleep(for: .milliseconds(100))
-
-        #expect(trailService.trail.count == 1)
-    }
+    // Deliberately no integration-level "rapid near-duplicate positions
+    // aren't double-recorded" test here: that behavior is `GeoTrailRecordingService
+    // .shouldRecord`'s responsibility, already covered exhaustively and
+    // deterministically by `GeoTrailRecordingServiceTests` (see
+    // `pointTooCloseInBothDistanceAndTimeIsNotRecorded` etc.) without any
+    // dependency on the full Combine engine chain settling in time. The
+    // engine-chain wiring itself is still covered by
+    // `recordsLivePositionsOnceAFlightBecomesActive` below.
 
     @Test func trailResetsWhenAircraftChangesMidFlight() async throws {
         let engines = makeEngines()
@@ -225,17 +212,16 @@ private final class FakeSessionMetricsTracking: SessionMetricsTracking {
 }
 
 /// Polls `condition` until it becomes `true` or a timeout elapses --
-/// same rationale/shape as `FlightHistoryEngineTests.waitUntil`. A much
-/// more generous timeout than that file's 500ms: `.serialized` on this
-/// suite avoids self-contention, but Swift Testing still runs other
-/// suites' MainActor-heavy tests concurrently with this one at the
-/// process level, and that cross-suite MainActor contention can stretch
-/// how long these fully-real-engine-chain tests take to settle well
-/// beyond their near-instant isolated runtime. This only affects how
-/// long a genuine failure takes to be reported, not correctness.
+/// same rationale/shape as `FlightHistoryEngineTests.waitUntil`, just a
+/// little more generous given this suite's fuller engine chain.
+/// `FlightMate.xctestplan` disables Swift Testing's default
+/// cross-suite parallelism for the whole `FlightMateTests` target
+/// (see its `parallelizable` setting), which is what makes a modest,
+/// fixed timeout reliable here rather than needing to absorb
+/// unbounded MainActor contention from unrelated suites.
 @MainActor
 private func waitUntil(
-    timeout: Duration = .seconds(15),
+    timeout: Duration = .seconds(10),
     _ condition: @MainActor () -> Bool
 ) async throws {
     let deadline = ContinuousClock.now + timeout

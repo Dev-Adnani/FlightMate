@@ -1,0 +1,29 @@
+{
+  "configurations" : [
+    {
+      "id" : "D4F5106A-7090-4872-A5A0-DB1415576C01",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:FlightMate.xcodeproj",
+      "identifier" : "9D2F57BE30177447000F22A9",
+      "name" : "FlightMate"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:FlightMate.xcodeproj",
+        "identifier" : "9D2F57CD30177448000F22A9",
+        "name" : "FlightMateTests"
+      }
+    }
+  ],
+  "version" : 1
+}

@@ -10,6 +10,22 @@ import SwiftData
 
 @main
 struct FlightMateApp: App {
+    /// True when this process was launched as the unit test bundle's host
+    /// app (`FlightMateTests`'s `TEST_HOST` build setting runs unit tests
+    /// *inside* this real `FlightMate` executable, not a separate xctest
+    /// process). `FlightMateApp`'s body still runs in that case, so without
+    /// this guard every `xcodebuild test` invocation would also bind a
+    /// second, fully real `UDPListener` to ``TelemetryService/defaultPort``
+    /// — colliding with a manually-run app instance still open on the same
+    /// Mac and producing the exact "Address already in use" spam this
+    /// guards against, deterministically, every time a test run overlaps a
+    /// live debug run. Unit tests already construct their own
+    /// `TelemetryService`/`AeroflySessionService` fakes/instances directly
+    /// and never rely on this app-level `.task` wiring.
+    private static var isRunningUnitTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
     /// Single, app-wide telemetry service. Owning it here (rather than
     /// inside a feature) ensures only one UDP listener is ever bound, and
     /// lets multiple features (Dashboard today, Context/AI later) share the
@@ -114,10 +130,12 @@ struct FlightMateApp: App {
                 telemetryService: telemetryService,
                 flightContextEngine: flightContextEngine,
                 flightAnalysisEngine: flightAnalysisEngine,
+                flightEventEngine: flightEventEngine,
                 flightHistoryEngine: flightHistoryEngine,
                 mapTrailService: mapTrailService
             )
                 .task {
+                    guard !Self.isRunningUnitTests else { return }
                     do {
                         try await telemetryService.start()
                     } catch {
@@ -126,6 +144,7 @@ struct FlightMateApp: App {
                     }
                 }
                 .task {
+                    guard !Self.isRunningUnitTests else { return }
                     aeroflySessionService.start()
                 }
         }
