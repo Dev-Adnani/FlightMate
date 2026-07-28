@@ -9,24 +9,23 @@ import SwiftUI
 
 /// Root view for the Dashboard feature.
 ///
-/// Currently hosts `TelemetryDebugView`, `FlightContextDebugView`, and
-/// `FlightHistoryDebugView` so the telemetry/flight-context/flight-history
-/// pipelines are observable while they're being built. Real dashboard
-/// content will replace this once there's something more meaningful to
-/// show than raw debug data.
+/// Currently hosts `TelemetryDebugView` and `FlightContextDebugView` so
+/// the telemetry/flight-context pipelines are observable while they're
+/// being built. Real dashboard content will replace this once there's
+/// something more meaningful to show than raw debug data.
+/// `FlightHistoryDebugView` now lives under its own "Flight History"
+/// destination -- see `FlightHistoryView`.
 struct DashboardView: View {
     @StateObject private var viewModel: DashboardViewModel
 
     init(
         telemetryService: TelemetryService,
-        flightContextEngine: FlightContextEngine,
-        flightHistoryEngine: FlightHistoryEngine
+        flightContextEngine: FlightContextEngine
     ) {
         _viewModel = StateObject(
             wrappedValue: DashboardViewModel(
                 telemetryService: telemetryService,
-                flightContextEngine: flightContextEngine,
-                flightHistoryEngine: flightHistoryEngine
+                flightContextEngine: flightContextEngine
             )
         )
     }
@@ -37,11 +36,10 @@ struct DashboardView: View {
                 TelemetryDebugView(telemetryService: viewModel.telemetryService)
                 Divider()
                 FlightContextDebugView(flightContextEngine: viewModel.flightContextEngine)
-                Divider()
-                FlightHistoryDebugView(flightHistoryEngine: viewModel.flightHistoryEngine)
             }
             .padding()
         }
+        .navigationTitle("Dashboard")
     }
 }
 
@@ -51,11 +49,8 @@ struct DashboardView: View {
         telemetryService: telemetryService,
         aeroflySessionService: AeroflySessionService()
     )
-    let flightAnalysisEngine = FlightAnalysisEngine(flightContextEngine: flightContextEngine)
-    let flightEventEngine = FlightEventEngine(flightAnalysisEngine: flightAnalysisEngine)
     DashboardView(
         telemetryService: telemetryService,
-        flightContextEngine: flightContextEngine,
-        flightHistoryEngine: FlightHistoryEngine(flightEventEngine: flightEventEngine)
+        flightContextEngine: flightContextEngine
     )
 }

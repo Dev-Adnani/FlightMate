@@ -13,6 +13,7 @@ struct AirportView: View {
 
     var body: some View {
         Text("Airport")
+            .navigationTitle("Airports")
     }
 }
 

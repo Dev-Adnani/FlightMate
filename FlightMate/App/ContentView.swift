@@ -2,60 +2,55 @@
 //  ContentView.swift
 //  FlightMate
 //
-//  Created by Dev Adnani on 27/07/26.
+//  FlightMate's real application shell -- a sidebar of
+//  `NavigationDestination`s driving a full-size detail view per section.
 //
 
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @State private var selection: NavigationDestination? = .dashboard
+
     let telemetryService: TelemetryService
     let flightContextEngine: FlightContextEngine
+    let flightAnalysisEngine: FlightAnalysisEngine
     let flightHistoryEngine: FlightHistoryEngine
+    let mapTrailService: MapTrailService
 
     var body: some View {
         NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
+            List(selection: $selection) {
+                ForEach(NavigationDestination.allCases) { destination in
+                    Label(destination.title, systemImage: destination.systemImage)
+                        .tag(destination)
                 }
-                .onDelete(perform: deleteItems)
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-            .toolbar {
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
+            .navigationTitle("FlightMate")
         } detail: {
-            DashboardView(
-                telemetryService: telemetryService,
+            destinationView(for: selection ?? .dashboard)
+        }
+    }
+
+    @ViewBuilder
+    private func destinationView(for destination: NavigationDestination) -> some View {
+        switch destination {
+        case .dashboard:
+            DashboardView(telemetryService: telemetryService, flightContextEngine: flightContextEngine)
+        case .movingMap:
+            MovingMapView(
                 flightContextEngine: flightContextEngine,
-                flightHistoryEngine: flightHistoryEngine
+                flightAnalysisEngine: flightAnalysisEngine,
+                mapTrailService: mapTrailService
             )
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
+        case .flightHistory:
+            FlightHistoryView(flightHistoryEngine: flightHistoryEngine)
+        case .airports:
+            AirportView()
+        case .aircraft:
+            AircraftView()
+        case .settings:
+            SettingsView()
         }
     }
 }
@@ -68,10 +63,15 @@ struct ContentView: View {
     )
     let flightAnalysisEngine = FlightAnalysisEngine(flightContextEngine: flightContextEngine)
     let flightEventEngine = FlightEventEngine(flightAnalysisEngine: flightAnalysisEngine)
+    let flightHistoryEngine = FlightHistoryEngine(flightEventEngine: flightEventEngine)
     ContentView(
         telemetryService: telemetryService,
         flightContextEngine: flightContextEngine,
-        flightHistoryEngine: FlightHistoryEngine(flightEventEngine: flightEventEngine)
+        flightAnalysisEngine: flightAnalysisEngine,
+        flightHistoryEngine: flightHistoryEngine,
+        mapTrailService: MapTrailService(
+            flightContextEngine: flightContextEngine,
+            flightHistoryEngine: flightHistoryEngine
+        )
     )
-    .modelContainer(for: Item.self, inMemory: true)
 }

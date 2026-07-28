@@ -43,10 +43,18 @@ struct FlightMateApp: App {
     /// Watches `flightEventEngine`'s published events over time and
     /// maintains the ordered, in-memory timeline of the current flight
     /// (plus a bounded log of previously completed/aborted ones this app
-    /// session). Surfaced today only via `FlightHistoryDebugView` in the
-    /// Dashboard — available for the next milestones (Flight Recorder,
-    /// Timeline UI, Debrief, Statistics, AI) to build on.
+    /// session). Surfaced via the "Flight History" destination —
+    /// available for the next milestones (Flight Recorder, Debrief,
+    /// Statistics, AI) to build on.
     @StateObject private var flightHistoryEngine: FlightHistoryEngine
+
+    /// Watches `flightContextEngine`'s live position and
+    /// `flightHistoryEngine`'s current flight identity, and maintains a
+    /// lightweight, sampled breadcrumb trail of the flight currently
+    /// being recorded. Surfaced via the "Moving Map" destination —
+    /// designed to be reused unchanged by future Replay/GPX-export/
+    /// Flight Recorder consumers (see `MapTrailService`).
+    @StateObject private var mapTrailService: MapTrailService
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -85,8 +93,18 @@ struct FlightMateApp: App {
         // `.task`-driven `.start()` calls run below — see
         // `FlightHistoryEngine`'s construction-order documentation for why
         // this ordering matters.
-        _flightHistoryEngine = StateObject(
-            wrappedValue: FlightHistoryEngine(flightEventEngine: flightEventEngine)
+        let flightHistoryEngine = FlightHistoryEngine(flightEventEngine: flightEventEngine)
+        _flightHistoryEngine = StateObject(wrappedValue: flightHistoryEngine)
+        // `MapTrailService` only ever consumes `@Published` sources
+        // (`flightContextEngine.$context`, `flightHistoryEngine.$currentHistory`),
+        // both of which replay their current value to new subscribers —
+        // unlike `FlightHistoryEngine`'s `eventPublisher`, there is no
+        // construction-order requirement here.
+        _mapTrailService = StateObject(
+            wrappedValue: MapTrailService(
+                flightContextEngine: flightContextEngine,
+                flightHistoryEngine: flightHistoryEngine
+            )
         )
     }
 
@@ -95,7 +113,9 @@ struct FlightMateApp: App {
             ContentView(
                 telemetryService: telemetryService,
                 flightContextEngine: flightContextEngine,
-                flightHistoryEngine: flightHistoryEngine
+                flightAnalysisEngine: flightAnalysisEngine,
+                flightHistoryEngine: flightHistoryEngine,
+                mapTrailService: mapTrailService
             )
                 .task {
                     do {
