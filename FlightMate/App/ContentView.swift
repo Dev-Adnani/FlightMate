@@ -17,6 +17,7 @@ struct ContentView: View {
     let flightEventEngine: FlightEventEngine
     let flightHistoryEngine: FlightHistoryEngine
     let mapTrailService: MapTrailService
+    let aircraftAssetManager: AircraftAssetManaging
 
     var body: some View {
         NavigationSplitView {
@@ -41,7 +42,8 @@ struct ContentView: View {
                 flightContextEngine: flightContextEngine,
                 flightAnalysisEngine: flightAnalysisEngine,
                 flightEventEngine: flightEventEngine,
-                flightHistoryEngine: flightHistoryEngine
+                flightHistoryEngine: flightHistoryEngine,
+                aircraftAssetManager: aircraftAssetManager
             )
         case .movingMap:
             MovingMapView(
@@ -84,6 +86,7 @@ struct ContentView: View {
         mapTrailService: MapTrailService(
             flightContextEngine: flightContextEngine,
             flightHistoryEngine: flightHistoryEngine
-        )
+        ),
+        aircraftAssetManager: AircraftAssetManager()
     )
 }

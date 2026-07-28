@@ -17,13 +17,14 @@ import Foundation
 /// View model for the Dashboard feature -- FlightMate's primary workspace.
 ///
 /// ## Dependency injection
-/// Not a singleton. Consumes four already-injected engines and never
-/// reaches for a shared/global instance. `FlightContextEngine` is included
-/// alongside the three higher-level engines specifically for the small set
-/// of fields `FlightAnalysis` deliberately excludes (raw altitude/ground
-/// speed/heading, session state) -- see `TelemetryCardModel`'s and
-/// `ConnectionStatusCardModel`'s doc comments. Individual cards never see
-/// any engine directly; they only ever receive the small, Equatable model
+/// Not a singleton. Consumes four already-injected engines plus an
+/// `AircraftAssetManaging` and never reaches for a shared/global instance.
+/// `FlightContextEngine` is included alongside the three higher-level
+/// engines specifically for the small set of fields `FlightAnalysis`
+/// deliberately excludes (raw altitude/ground speed/heading, session
+/// state) -- see `TelemetryCardModel`'s and `ConnectionStatusCardModel`'s
+/// doc comments. Individual cards never see any engine or the asset
+/// manager directly; they only ever receive the small, Equatable model
 /// this view model publishes for them.
 ///
 /// ## Performance
@@ -42,6 +43,7 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var recentEvents: RecentEventsCardModel = .empty
     @Published private(set) var connectionStatus: ConnectionStatusCardModel = .empty
 
+    private let aircraftAssetManager: AircraftAssetManaging
     private var latestContext: FlightContext
     private var latestAnalysis: FlightAnalysis
     private var cancellables: Set<AnyCancellable> = []
@@ -50,8 +52,10 @@ final class DashboardViewModel: ObservableObject {
         flightContextEngine: FlightContextEngine,
         flightAnalysisEngine: FlightAnalysisEngine,
         flightEventEngine: FlightEventEngine,
-        flightHistoryEngine: FlightHistoryEngine
+        flightHistoryEngine: FlightHistoryEngine,
+        aircraftAssetManager: AircraftAssetManaging = AircraftAssetManager()
     ) {
+        self.aircraftAssetManager = aircraftAssetManager
         latestContext = flightContextEngine.context
         latestAnalysis = flightAnalysisEngine.analysis
 
@@ -89,7 +93,7 @@ final class DashboardViewModel: ObservableObject {
 
     /// Cards driven purely by `FlightAnalysis`.
     private func refreshAnalysisDerivedCards() {
-        setIfChanged(\.aircraft, AircraftCardModel.from(latestAnalysis))
+        setIfChanged(\.aircraft, AircraftCardModel.from(latestAnalysis, assetManager: aircraftAssetManager))
         setIfChanged(\.flightPhase, FlightPhaseCardModel.from(latestAnalysis))
         refreshCombinedCards()
     }

@@ -25,14 +25,16 @@ struct DashboardView: View {
         flightContextEngine: FlightContextEngine,
         flightAnalysisEngine: FlightAnalysisEngine,
         flightEventEngine: FlightEventEngine,
-        flightHistoryEngine: FlightHistoryEngine
+        flightHistoryEngine: FlightHistoryEngine,
+        aircraftAssetManager: AircraftAssetManaging = AircraftAssetManager()
     ) {
         _viewModel = StateObject(
             wrappedValue: DashboardViewModel(
                 flightContextEngine: flightContextEngine,
                 flightAnalysisEngine: flightAnalysisEngine,
                 flightEventEngine: flightEventEngine,
-                flightHistoryEngine: flightHistoryEngine
+                flightHistoryEngine: flightHistoryEngine,
+                aircraftAssetManager: aircraftAssetManager
             )
         )
     }

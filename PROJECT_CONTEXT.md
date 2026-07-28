@@ -345,6 +345,37 @@ history) is wired into the dashboard for manual verification only.
 Constructed and injected once in `FlightMateApp`, immediately after
 `FlightEventEngine`.
 
+### Aircraft Asset Manager (built — abstraction only)
+
+`AircraftAssetManager` (`Core/AircraftAssets/`) resolves aircraft preview
+images for the UI through a prioritized provider chain. Views never access
+the filesystem, never hardcode image names, and never know which provider
+won — they request an asset via `AircraftAssetManaging.resolve(_:)` and
+render the result with `AircraftAssetImage`.
+
+**Shipping provider chain** (highest priority first):
+
+1. `BundledAircraftAssetProvider` — FlightMate-owned per-aircraft /
+   per-livery PNG/WebP under `Resources/Aircraft/Assets/` (none shipped
+   yet; an empty folder is valid).
+2. `CategoryPlaceholderAssetProvider` — category illustration if present,
+   otherwise the category's SF Symbol stand-in.
+3. `SystemSymbolAssetProvider` — generic SF Symbol; always succeeds.
+
+**Explicitly out of scope:** decoding or redistributing Aerofly `.ttx`
+textures. IPACS's format is one-way by design (copyright + compression).
+Future providers (user-installed asset packs, licensed artwork, official
+IPACS support) plug into `AircraftAssetProviding` without changing the
+manager's public API.
+
+In-memory resolution caching via `AircraftAssetCaching`; the protocol is
+ready for a future disk-backed implementation. Wired into
+`DashboardView`/`AircraftCard` today; Aircraft Browser / AI will reuse the
+same manager.
+
+Airport imagery is a separate concern — when Airport Browser lands, prefer
+MapKit snapshots over bundled airport thumbnails.
+
 ### Planned future pipeline
 
 ```

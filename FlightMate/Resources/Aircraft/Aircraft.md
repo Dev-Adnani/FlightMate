@@ -27,6 +27,10 @@ two ways:
 root) is the source repo's own human-readable aircraft list, kept for
 reference.
 
+Preview images (when present) live under `Assets/` — see `Assets/Assets.md`.
+They are FlightMate-owned only; Aerofly `.ttx` files must never be placed
+here.
+
 `fboes/aerofly-data` is MIT licensed, Copyright © 2024 Frank Boës — see
 `../Airports/LICENSE.txt` for the full text, reproduced here as required by
 the license.

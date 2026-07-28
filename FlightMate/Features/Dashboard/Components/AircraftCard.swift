@@ -11,7 +11,8 @@ import SwiftUI
 ///
 /// Purely presentational -- every field comes straight off
 /// `AircraftCardModel`; no lookups, formatting decisions, or resolution
-/// logic happen here.
+/// logic happen here. The preview image is whatever
+/// `AircraftAssetManager` already resolved into `model.asset`.
 struct AircraftCard: DashboardCard {
     let model: AircraftCardModel
 
@@ -21,11 +22,8 @@ struct AircraftCard: DashboardCard {
     var body: some View {
         CardContainer(title: cardTitle, systemImage: cardIcon) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: AircraftCardModel.iconSystemImage)
-                    .font(.system(size: 36))
-                    .foregroundStyle(model.hasSelection ? .primary : .tertiary)
-                    .symbolRenderingMode(.hierarchical)
-                    .accessibilityHidden(true)
+                AircraftAssetImage(asset: model.asset, isEmphasized: model.hasSelection)
+                    .frame(width: 44, height: 44)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(model.aircraftName)

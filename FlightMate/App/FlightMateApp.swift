@@ -72,6 +72,14 @@ struct FlightMateApp: App {
     /// Flight Recorder consumers (see `MapTrailService`).
     @StateObject private var mapTrailService: MapTrailService
 
+    /// Resolves aircraft preview images through a provider chain
+    /// (FlightMate-bundled art → category placeholder → SF Symbol).
+    /// Not an `ObservableObject` -- plain DI -- so every feature that
+    /// needs a preview (Dashboard today; Aircraft Browser / AI later)
+    /// shares one cache without ever touching the filesystem itself.
+    /// See `AircraftAssetManager`.
+    private let aircraftAssetManager: AircraftAssetManaging
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
@@ -122,6 +130,7 @@ struct FlightMateApp: App {
                 flightHistoryEngine: flightHistoryEngine
             )
         )
+        aircraftAssetManager = AircraftAssetManager()
     }
 
     var body: some Scene {
@@ -132,7 +141,8 @@ struct FlightMateApp: App {
                 flightAnalysisEngine: flightAnalysisEngine,
                 flightEventEngine: flightEventEngine,
                 flightHistoryEngine: flightHistoryEngine,
-                mapTrailService: mapTrailService
+                mapTrailService: mapTrailService,
+                aircraftAssetManager: aircraftAssetManager
             )
                 .task {
                     guard !Self.isRunningUnitTests else { return }
