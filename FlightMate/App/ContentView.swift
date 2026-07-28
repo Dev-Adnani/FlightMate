@@ -13,6 +13,7 @@ struct ContentView: View {
     @Query private var items: [Item]
     let telemetryService: TelemetryService
     let flightContextEngine: FlightContextEngine
+    let flightHistoryEngine: FlightHistoryEngine
 
     var body: some View {
         NavigationSplitView {
@@ -35,7 +36,11 @@ struct ContentView: View {
                 }
             }
         } detail: {
-            DashboardView(telemetryService: telemetryService, flightContextEngine: flightContextEngine)
+            DashboardView(
+                telemetryService: telemetryService,
+                flightContextEngine: flightContextEngine,
+                flightHistoryEngine: flightHistoryEngine
+            )
         }
     }
 
@@ -57,12 +62,16 @@ struct ContentView: View {
 
 #Preview {
     let telemetryService = TelemetryService()
+    let flightContextEngine = FlightContextEngine(
+        telemetryService: telemetryService,
+        aeroflySessionService: AeroflySessionService()
+    )
+    let flightAnalysisEngine = FlightAnalysisEngine(flightContextEngine: flightContextEngine)
+    let flightEventEngine = FlightEventEngine(flightAnalysisEngine: flightAnalysisEngine)
     ContentView(
         telemetryService: telemetryService,
-        flightContextEngine: FlightContextEngine(
-            telemetryService: telemetryService,
-            aeroflySessionService: AeroflySessionService()
-        )
+        flightContextEngine: flightContextEngine,
+        flightHistoryEngine: FlightHistoryEngine(flightEventEngine: flightEventEngine)
     )
     .modelContainer(for: Item.self, inMemory: true)
 }

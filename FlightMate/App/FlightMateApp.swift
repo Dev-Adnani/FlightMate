@@ -40,6 +40,14 @@ struct FlightMateApp: App {
     /// AI) to build on.
     @StateObject private var flightEventEngine: FlightEventEngine
 
+    /// Watches `flightEventEngine`'s published events over time and
+    /// maintains the ordered, in-memory timeline of the current flight
+    /// (plus a bounded log of previously completed/aborted ones this app
+    /// session). Surfaced today only via `FlightHistoryDebugView` in the
+    /// Dashboard — available for the next milestones (Flight Recorder,
+    /// Timeline UI, Debrief, Statistics, AI) to build on.
+    @StateObject private var flightHistoryEngine: FlightHistoryEngine
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
@@ -71,14 +79,24 @@ struct FlightMateApp: App {
         _flightContextEngine = StateObject(wrappedValue: flightContextEngine)
         let flightAnalysisEngine = FlightAnalysisEngine(flightContextEngine: flightContextEngine)
         _flightAnalysisEngine = StateObject(wrappedValue: flightAnalysisEngine)
-        _flightEventEngine = StateObject(
-            wrappedValue: FlightEventEngine(flightAnalysisEngine: flightAnalysisEngine)
+        let flightEventEngine = FlightEventEngine(flightAnalysisEngine: flightAnalysisEngine)
+        _flightEventEngine = StateObject(wrappedValue: flightEventEngine)
+        // Constructed immediately after `flightEventEngine`, before any
+        // `.task`-driven `.start()` calls run below — see
+        // `FlightHistoryEngine`'s construction-order documentation for why
+        // this ordering matters.
+        _flightHistoryEngine = StateObject(
+            wrappedValue: FlightHistoryEngine(flightEventEngine: flightEventEngine)
         )
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(telemetryService: telemetryService, flightContextEngine: flightContextEngine)
+            ContentView(
+                telemetryService: telemetryService,
+                flightContextEngine: flightContextEngine,
+                flightHistoryEngine: flightHistoryEngine
+            )
                 .task {
                     do {
                         try await telemetryService.start()
