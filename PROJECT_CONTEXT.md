@@ -232,12 +232,125 @@ actually introduces a severity-driven consumer (notifications, AI tone).
 Not surfaced in any UI yet — constructed and injected once in
 `FlightMateApp`, alongside `FlightAnalysisEngine`.
 
+### Flight History Engine (built)
+
+`FlightHistoryEngine` (`Core/FlightHistory/`) maintains the ordered,
+in-memory timeline of the current flight. Where `FlightEventEngine` only
+*detects* transitions (and keeps a bounded, trimmable rolling window of
+them), `FlightHistoryEngine` is the one place that owns the complete,
+never-reordered, never-mutated-after-insertion story of a flight from the
+moment an aircraft is loaded to the moment it's completed (or aborted).
+This is **not** a replay system, **not** persistence, and **not**
+SwiftData — everything lives in memory for the lifetime of the app
+process; a future milestone decides if/when/how any of it gets saved.
+
+It consumes `FlightEventEngine.eventPublisher` *only* — never raw UDP
+telemetry, never `FlightContext`, never `FlightAnalysis` directly, and it
+never duplicates any detection logic. `FlightEventEngine` has no knowledge
+that `FlightHistoryEngine` exists; it's just another subscriber to its
+already-public `eventPublisher` (deliberately *not* `events`, since that
+array is bounded/trimmable — `eventPublisher` fires every event
+unconditionally, which is exactly what a complete history needs).
+
+Split, mirroring every other engine/service pair in this codebase:
+
+- **`FlightHistory`** (`Identifiable`, `Equatable` struct) — a single
+  flight's `id`, `startTime`, ordered `events: [FlightEvent]`, and
+  `status` (`FlightHistoryStatus`: `.active`/`.completed`/`.aborted`).
+  `currentAircraft`/`departureAirport`/`destinationAirport`/
+  `durationSeconds` are all *derived*, read off the most recent event's
+  `FlightAnalysis` snapshot rather than duplicated/re-tracked — one source
+  of truth. Value semantics throughout: `appending(_:)` and
+  `finalized(as:at:)` both return a new copy rather than mutating in
+  place, so a view or consumer holding an older `FlightHistory` value
+  never sees it change out from under it.
+- **`FlightHistoryService`** (pure `enum`, static functions only) — given
+  one `FlightEvent` and the current `State` (`currentHistory` +
+  `completedHistories`), returns the next `State`. No state of its own,
+  no I/O, no Combine — trivially unit testable in isolation from the
+  engine.
+- **`FlightHistoryEngine`** (stateful `ObservableObject`) — owns no
+  transition-rule logic, only Combine wiring: subscribes to
+  `flightEventEngine.eventPublisher`, threads `FlightHistoryService.State`
+  across observations, and publishes `currentHistory` (`nil` until an
+  aircraft is loaded) plus a bounded `completedHistories` (oldest first,
+  default last 25, oldest dropped past that — mirrors
+  `FlightEventEngine.events`'s own bound, for the same reason: safe for
+  many flights across one long app session).
+
+**History lifecycle rules** (see `FlightHistoryService`):
+
+- A history begins only on `aircraftLoaded` or `aircraftChanged` — no
+  other event (e.g. a stray `telemetryLost` before any aircraft is ever
+  loaded) starts one. This mirrors `FlightEventDetectionService`'s own
+  aircraft-identity latch semantics.
+- `flightCompleted` appends the event, then finalizes the history as
+  `.completed` and moves it to `completedHistories`.
+- `aircraftChanged` while a history is already active is treated as a
+  session boundary, not a mid-flight detail: the current history is
+  finalized as `.aborted` and moved to `completedHistories`, and a new
+  history is immediately started, seeded with that same `aircraftChanged`
+  event as its first entry. `aircraftLoaded` while already active behaves
+  identically (symmetry, since `aircraftLoaded` is otherwise a one-time,
+  application-lifetime event per `FlightEventDetectionService`, so this
+  path only matters defensively). There is deliberately no idle gap
+  between flights.
+- Any other event with no active history (e.g. `flightCompleted` firing
+  with nothing to complete) is dropped rather than starting a malformed
+  history.
+
+**Construction-order requirement** — like every engine layered on a
+`PassthroughSubject`-backed publisher in this codebase,
+`FlightHistoryEngine` must be constructed immediately after
+`FlightEventEngine`, before any telemetry/session watching starts (see
+`FlightHistoryEngine`'s own doc comment). `eventPublisher` never replays
+past events to a late subscriber, so this ordering — already established
+for `FlightEventEngine` itself in `FlightMateApp.init()` — is what
+guarantees no event is ever emitted into a gap where nothing is listening
+yet.
+
+**Why a separate layer instead of extending `FlightEventEngine`** —
+`FlightEventEngine` answers "what just happened," bounded and
+trim-friendly, appropriate for a detector that must stay cheap across a
+multi-hour flight. `FlightHistoryEngine` answers "what has happened, in
+order, for this flight" — a fundamentally different contract (complete,
+ordered, immutable-once-inserted) with different future consumers
+(Timeline UI, Flight Recorder, AI debrief, Flight Statistics, eventual
+Logbook). Merging the two would force every future history consumer to
+depend on `FlightEventEngine`'s detection internals and its trimming
+behavior, and would force every future detection-only consumer to pay for
+history bookkeeping it doesn't need.
+
+**Path to persistence** — nothing here depends on staying in-memory.
+`FlightHistory`/`FlightEvent` are plain, `Codable`-friendly value types
+today; a future milestone can add a SwiftData-backed store that observes
+`FlightHistoryEngine.$completedHistories` (and optionally
+`$currentHistory`, for crash recovery) and persists each finalized
+history exactly once, without `FlightHistoryEngine` itself ever knowing
+persistence exists — the same "publish, let another layer decide what to
+do with it" pattern `eventPublisher` already established.
+
+**Path to replay** — a future Replay feature only needs to iterate a
+`FlightHistory.events` array in order and re-render/re-narrate each
+`FlightEvent`'s carried `FlightAnalysis` snapshot on a timer — it doesn't
+need a separate recording format, because `FlightHistory` already *is* the
+complete, ordered recording. Whether the source is today's in-memory
+`completedHistories` or, later, a SwiftData-loaded history makes no
+difference to a replay consumer.
+
+Not surfaced in any production UI yet — a minimal, unstyled
+`FlightHistoryDebugView` (current history's status/aircraft/route/
+duration plus its event list, and a one-line summary per completed
+history) is wired into the dashboard for manual verification only.
+Constructed and injected once in `FlightMateApp`, immediately after
+`FlightEventEngine`.
+
 ### Planned future pipeline
 
 ```
-Telemetry → Session → Domain Resolution → Flight Analysis → Flight Events → Context Builder → AI
-                                                              ^^^^^^^^^^^^^
-                                                                built ✅
+Telemetry → Session → Domain Resolution → Flight Analysis → Flight Events → Flight History → Context Builder → AI
+                                                                              ^^^^^^^^^^^^^^
+                                                                                built ✅
 ```
 
 - **Prompt Context Builder** (next): combines `FlightAnalysis`,
