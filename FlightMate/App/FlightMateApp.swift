@@ -16,9 +16,14 @@ struct FlightMateApp: App {
     /// same live packet stream.
     @StateObject private var telemetryService: TelemetryService
 
-    /// Combines `telemetryService`'s raw packets into one observable
-    /// `FlightContext`. Constructed with `telemetryService` injected in
-    /// `init` below — neither type is a singleton.
+    /// Watches Aerofly's `main.mcf` session file, independent from
+    /// `telemetryService`/UDP. Owning it here alongside `telemetryService`
+    /// keeps both live sources at the same app-wide lifetime.
+    @StateObject private var aeroflySessionService: AeroflySessionService
+
+    /// Combines `telemetryService`'s raw packets and `aeroflySessionService`'s
+    /// parsed session into one observable `FlightContext`. Constructed with
+    /// both injected in `init` below — neither type is a singleton.
     @StateObject private var flightContextEngine: FlightContextEngine
 
     var sharedModelContainer: ModelContainer = {
@@ -38,12 +43,18 @@ struct FlightMateApp: App {
         // `@StateObject`'s default-value expressions can't reference sibling
         // properties (there's no `self` yet at that point), so the
         // dependency chain is wired explicitly here instead: one
-        // `TelemetryService` instance is created, then handed to
-        // `FlightContextEngine` via its initializer.
+        // `TelemetryService` and one `AeroflySessionService` instance are
+        // created, then both handed to `FlightContextEngine` via its
+        // initializer.
         let telemetryService = TelemetryService()
+        let aeroflySessionService = AeroflySessionService()
         _telemetryService = StateObject(wrappedValue: telemetryService)
+        _aeroflySessionService = StateObject(wrappedValue: aeroflySessionService)
         _flightContextEngine = StateObject(
-            wrappedValue: FlightContextEngine(telemetryService: telemetryService)
+            wrappedValue: FlightContextEngine(
+                telemetryService: telemetryService,
+                aeroflySessionService: aeroflySessionService
+            )
         )
     }
 
@@ -57,6 +68,9 @@ struct FlightMateApp: App {
                         // Failure is already reflected in `telemetryService.status`
                         // and surfaced via TelemetryDebugView; nothing else to do here.
                     }
+                }
+                .task {
+                    aeroflySessionService.start()
                 }
         }
         .modelContainer(sharedModelContainer)

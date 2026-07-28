@@ -59,7 +59,10 @@ struct ContentView: View {
     let telemetryService = TelemetryService()
     ContentView(
         telemetryService: telemetryService,
-        flightContextEngine: FlightContextEngine(telemetryService: telemetryService)
+        flightContextEngine: FlightContextEngine(
+            telemetryService: telemetryService,
+            aeroflySessionService: AeroflySessionService()
+        )
     )
     .modelContainer(for: Item.self, inMemory: true)
 }

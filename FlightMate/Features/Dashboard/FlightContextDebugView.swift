@@ -71,6 +71,49 @@ struct FlightContextDebugView: View {
                     Text(lastUpdatedDescription)
                 }
             }
+
+            Divider()
+
+            Text("Aerofly Session (main.mcf)")
+                .font(.headline)
+
+            Grid(alignment: .leading, verticalSpacing: 8) {
+                GridRow {
+                    Text("Session State")
+                        .foregroundStyle(.secondary)
+                    Text(sessionStateDescription)
+                }
+                GridRow {
+                    Text("Aircraft")
+                        .foregroundStyle(.secondary)
+                    Text(aircraftDescription)
+                }
+                GridRow {
+                    Text("Departure")
+                        .foregroundStyle(.secondary)
+                    Text(runwayDescription(context.aeroflySession?.departure))
+                }
+                GridRow {
+                    Text("Destination")
+                        .foregroundStyle(.secondary)
+                    Text(runwayDescription(context.aeroflySession?.destination))
+                }
+                GridRow {
+                    Text("On Ground")
+                        .foregroundStyle(.secondary)
+                    Text(context.aeroflySession?.onGround.map { $0 ? "Yes" : "No" } ?? "—")
+                }
+                GridRow {
+                    Text("Aerofly Version")
+                        .foregroundStyle(.secondary)
+                    Text(context.aeroflySession?.aeroflyVersion ?? "—")
+                }
+                GridRow {
+                    Text("Validation Warnings")
+                        .foregroundStyle(.secondary)
+                    Text(validationSummary)
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
@@ -101,8 +144,52 @@ struct FlightContextDebugView: View {
         }
         return String(format: "%.4f", value) + unit
     }
+
+    private var sessionStateDescription: String {
+        switch context.aeroflySessionState {
+        case .notStarted:
+            return "Not Started"
+        case .userDirectoryNotFound:
+            return "Aerofly Directory Not Found"
+        case .fileNotFound:
+            return "main.mcf Not Found"
+        case .loaded:
+            return "Loaded"
+        case .parseFailed(let message):
+            return "Parse Failed: \(message)"
+        }
+    }
+
+    private var aircraftDescription: String {
+        guard let aircraft = context.aeroflySession?.aircraft else {
+            return "—"
+        }
+        return "\(aircraft.aeroflyCode) / \(aircraft.liveryCode)"
+    }
+
+    private func runwayDescription(_ reference: AeroflySession.RunwayReference?) -> String {
+        guard let reference else {
+            return "—"
+        }
+        guard let runway = reference.runwayIdentifier else {
+            return reference.airportCode
+        }
+        return "\(reference.airportCode) / RWY \(runway)"
+    }
+
+    private var validationSummary: String {
+        guard let report = context.aeroflySessionValidation else {
+            return "—"
+        }
+        return report.hasWarnings ? "\(report.warnings.count) warning(s)" : "None"
+    }
 }
 
 #Preview {
-    FlightContextDebugView(flightContextEngine: FlightContextEngine(telemetryService: TelemetryService()))
+    FlightContextDebugView(
+        flightContextEngine: FlightContextEngine(
+            telemetryService: TelemetryService(),
+            aeroflySessionService: AeroflySessionService()
+        )
+    )
 }

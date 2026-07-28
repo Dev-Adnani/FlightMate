@@ -2,8 +2,24 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>com.apple.security.app-sandbox</key>
-	<true/>
+	<!--
+	  App Sandbox is intentionally disabled.
+
+	  FlightMate must read Aerofly FS 4's own session files
+	  (~/Library/Application Support/Aerofly FS 4/main.mcf, tm.log) to
+	  build AeroflySession. Under App Sandbox, FileManager's
+	  applicationSupportDirectory silently redirects to FlightMate's own
+	  isolated container instead of the real ~/Library/Application
+	  Support/, so a sandboxed build can never see Aerofly's files no
+	  matter how correct the path-resolution logic is.
+
+	  FlightMate is a personal/companion tool distributed outside the
+	  Mac App Store, so sandboxing is not a distribution requirement here.
+	  If Mac App Store distribution is ever pursued, re-enable
+	  com.apple.security.app-sandbox and switch
+	  AeroflyUserDirectoryLocating to a security-scoped bookmark obtained
+	  via a one-time NSOpenPanel folder picker instead.
+	-->
 	<key>com.apple.security.network.server</key>
 	<true/>
 	<key>com.apple.security.network.client</key>

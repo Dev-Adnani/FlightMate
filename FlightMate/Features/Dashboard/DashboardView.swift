@@ -39,6 +39,9 @@ struct DashboardView: View {
     let telemetryService = TelemetryService()
     DashboardView(
         telemetryService: telemetryService,
-        flightContextEngine: FlightContextEngine(telemetryService: telemetryService)
+        flightContextEngine: FlightContextEngine(
+            telemetryService: telemetryService,
+            aeroflySessionService: AeroflySessionService()
+        )
     )
 }

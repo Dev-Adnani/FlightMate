@@ -22,4 +22,8 @@ enum AppLogger {
     /// Logs related to loading and decoding bundled reference data
     /// (airports, aircraft).
     static let referenceData = Logger(subsystem: subsystem, category: "ReferenceData")
+
+    /// Logs related to locating, watching, and parsing Aerofly's session
+    /// files (main.mcf, tm.log) — see `AeroflySessionService`.
+    static let aeroflySession = Logger(subsystem: subsystem, category: "AeroflySession")
 }
