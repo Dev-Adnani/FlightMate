@@ -3,7 +3,7 @@
 //  FlightMate
 //
 //  FlightMate's primary workspace -- the screen a pilot keeps open on a
-//  second monitor while flying. A calm, glanceable, card-based summary of
+//  second monitor while flying. A calm, glanceable, bento-grid summary of
 //  the current flight; see PROJECT_CONTEXT.md and this milestone's design
 //  philosophy for the "answer these questions in under 5 seconds" goal.
 //
@@ -13,13 +13,11 @@ import SwiftUI
 /// Root view for the Dashboard feature.
 ///
 /// Purely a layout: every card renders its own `@Published` model from
-/// `viewModel` and contains no business logic of its own. Uses an adaptive
-/// `LazyVGrid` (never fixed pixel positions) so cards reflow naturally as
-/// the window resizes, from a single column up to a wide desktop layout.
+/// `viewModel` and contains no business logic of its own. The bento grid
+/// (`DashboardBentoGrid`) keeps row heights even and reflows from 3 → 2 →
+/// 1 columns as the window resizes.
 struct DashboardView: View {
     @StateObject private var viewModel: DashboardViewModel
-
-    private let columns = [GridItem(.adaptive(minimum: Theme.Layout.minCardWidth), spacing: Theme.Spacing.cardGap)]
 
     init(
         flightContextEngine: FlightContextEngine,
@@ -41,16 +39,16 @@ struct DashboardView: View {
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: Theme.Spacing.cardGap) {
-                AircraftCard(model: viewModel.aircraft)
-                FlightPhaseCard(model: viewModel.flightPhase)
-                NavigationCard(model: viewModel.navigation)
-                TelemetryCard(model: viewModel.telemetry)
-                FlightDurationCard(model: viewModel.flightDuration)
-                RecentEventsCard(model: viewModel.recentEvents)
-                ConnectionStatusCard(model: viewModel.connectionStatus)
-            }
-            .padding()
+            DashboardBentoGrid(
+                aircraft: viewModel.aircraft,
+                flightPhase: viewModel.flightPhase,
+                navigation: viewModel.navigation,
+                telemetry: viewModel.telemetry,
+                flightDuration: viewModel.flightDuration,
+                recentEvents: viewModel.recentEvents,
+                connectionStatus: viewModel.connectionStatus
+            )
+            .padding(Theme.Spacing.dashboardPadding)
         }
         .navigationTitle("Dashboard")
     }
@@ -70,5 +68,5 @@ struct DashboardView: View {
         flightEventEngine: flightEventEngine,
         flightHistoryEngine: FlightHistoryEngine(flightEventEngine: flightEventEngine)
     )
-    .frame(width: 900, height: 700)
+    .frame(width: 1100, height: 720)
 }

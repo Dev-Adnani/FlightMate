@@ -29,8 +29,14 @@ final class AeroflySessionService: ObservableObject {
 
     /// Rapid successive file-change events (common during atomic
     /// write-then-rename saves) are coalesced into a single reparse after
-    /// this long a quiet period.
-    private static let debounceInterval: Duration = .milliseconds(250)
+    /// this long a quiet period. Slightly longer than a single disk flush
+    /// so a mid-replace read is less likely to see a truncated file.
+    private static let debounceInterval: Duration = .milliseconds(400)
+
+    /// How many times to retry a briefly-unreadable `main.mcf` (typical
+    /// during an atomic replace) before treating it as genuinely missing.
+    private static let readRetryCount = 5
+    private static let readRetryDelay: Duration = .milliseconds(50)
 
     private let directoryLocator: AeroflyUserDirectoryLocating
     private let fileWatcher: AeroflyFileWatching
@@ -46,7 +52,7 @@ final class AeroflySessionService: ObservableObject {
         directoryLocator: AeroflyUserDirectoryLocating = MacOSAeroflyUserDirectoryLocator(),
         fileWatcher: AeroflyFileWatching = DispatchSourceAeroflyFileWatcher(),
         versionReader: AeroflyVersionReading = TmLogAeroflyVersionReader(),
-        readFileContents: @escaping (URL) -> String? = { url in try? String(contentsOf: url, encoding: .utf8) },
+        readFileContents: @escaping (URL) -> String? = AeroflySessionService.readUncachedUTF8,
         now: @escaping () -> Date = Date.init
     ) {
         self.directoryLocator = directoryLocator
@@ -56,11 +62,26 @@ final class AeroflySessionService: ObservableObject {
         self.now = now
     }
 
+    /// Reads `url` bypassing the kernel's file-data cache so a just-rewritten
+    /// `main.mcf` is never served as a stale previous version — a common
+    /// cause of "file changed on disk but the app still shows the old
+    /// aircraft."
+    static func readUncachedUTF8(from url: URL) -> String? {
+        do {
+            let data = try Data(contentsOf: url, options: [.uncached])
+            return String(data: data, encoding: .utf8)
+        } catch {
+            return nil
+        }
+    }
+
     /// Resolves Aerofly's user directory, performs one immediate parse
     /// attempt, then begins watching `main.mcf` for subsequent changes.
     /// Idempotent-ish: calling `start()` again re-resolves everything from
     /// scratch.
     func start() {
+        stop()
+
         guard let directory = directoryLocator.locateUserDirectory() else {
             state = .userDirectoryNotFound
             AppLogger.aeroflySession.warning("Aerofly user directory not found; session data unavailable.")
@@ -78,6 +99,8 @@ final class AeroflySessionService: ObservableObject {
                 self?.scheduleDebouncedReparse()
             }
         }
+
+        AppLogger.aeroflySession.info("Watching \(mcfURL.path, privacy: .public) for live session updates.")
     }
 
     /// Stops watching and cancels any pending debounced reparse. Safe to
@@ -95,19 +118,53 @@ final class AeroflySessionService: ObservableObject {
         debounceTask = Task { [weak self] in
             try? await Task.sleep(for: Self.debounceInterval)
             guard !Task.isCancelled else { return }
-            self?.parseAndPublish()
+            await self?.parseAndPublishWithRetry()
         }
     }
 
-    private func parseAndPublish() {
-        guard let mcfURL = mainMcfURL, let userDirectory else { return }
+    /// Retries briefly when `main.mcf` is unreadable mid-replace, instead
+    /// of immediately publishing `.fileNotFound` and wiping a good session.
+    private func parseAndPublishWithRetry() async {
+        guard mainMcfURL != nil, userDirectory != nil else { return }
+
+        for attempt in 0..<Self.readRetryCount {
+            if parseAndPublish(allowTransientFailure: attempt < Self.readRetryCount - 1) {
+                return
+            }
+            try? await Task.sleep(for: Self.readRetryDelay)
+            guard !Task.isCancelled else { return }
+        }
+    }
+
+    /// - Parameter allowTransientFailure: When `true` and the file is
+    ///   briefly unreadable while we already have a `.loaded` session,
+    ///   keep the last session and return `false` so the caller can retry.
+    /// - Returns: `true` if parsing finished (success or hard failure),
+    ///   `false` if a transient read failure should be retried.
+    @discardableResult
+    private func parseAndPublish(allowTransientFailure: Bool = false) -> Bool {
+        guard let mcfURL = mainMcfURL, let userDirectory else { return true }
 
         guard let contents = readFileContents(mcfURL) else {
+            // Mid-replace / briefly locked: never wipe a previously loaded
+            // session just because one read failed. Retry while
+            // `allowTransientFailure` is true; after retries are exhausted,
+            // still keep the last session so the UI doesn't flicker to
+            // "No Aircraft" during atomic saves.
+            if state == .loaded, session != nil {
+                if allowTransientFailure {
+                    AppLogger.aeroflySession.debug("main.mcf briefly unreadable; keeping last session and retrying.")
+                    return false
+                }
+                AppLogger.aeroflySession.debug("main.mcf unreadable after retries; keeping last session.")
+                return true
+            }
+
             publish(session: nil, state: .fileNotFound, report: AeroflySessionValidationReport(
                 entries: [AeroflySessionValidationEntry(field: "main.mcf", status: .missing, detail: "file not found at \(mcfURL.path)")],
                 generatedAt: now()
             ))
-            return
+            return true
         }
 
         let aeroflyVersion = versionReader.readVersion(in: userDirectory)
@@ -123,6 +180,7 @@ final class AeroflySessionService: ObservableObject {
                 generatedAt: now()
             ))
         }
+        return true
     }
 
     /// Applies "publish only meaningful changes" for `session`/`state`
@@ -130,6 +188,7 @@ final class AeroflySessionService: ObservableObject {
     /// are written on every single parse attempt, per the milestone's
     /// validation requirement.
     private func publish(session newSession: AeroflySession?, state newState: AeroflySessionState, report: AeroflySessionValidationReport) {
+        let aircraftChanged = session?.aircraft != newSession?.aircraft
         if session != newSession {
             session = newSession
         }
@@ -137,10 +196,20 @@ final class AeroflySessionService: ObservableObject {
             state = newState
         }
         lastValidationReport = report
-        log(report, state: newState)
+        log(report, state: newState, aircraftChanged: aircraftChanged)
     }
 
-    private func log(_ report: AeroflySessionValidationReport, state: AeroflySessionState) {
+    private func log(
+        _ report: AeroflySessionValidationReport,
+        state: AeroflySessionState,
+        aircraftChanged: Bool
+    ) {
+        if aircraftChanged, let aircraft = session?.aircraft {
+            AppLogger.aeroflySession.info(
+                "Session aircraft updated: \(aircraft.aeroflyCode, privacy: .public) / \(aircraft.liveryCode, privacy: .public)"
+            )
+        }
+
         if report.hasWarnings {
             let summary = report.warnings.map { "\($0.field): \($0.status)\($0.detail.map { " (\($0))" } ?? "")" }.joined(separator: "; ")
             AppLogger.aeroflySession.info("main.mcf parsed with \(report.warnings.count) warning(s): \(summary, privacy: .public)")

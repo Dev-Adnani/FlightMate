@@ -19,6 +19,10 @@ protocol AirportProviding {
     /// Returns up to `limit` airports closest to `coordinate`, nearest first.
     func nearestAirports(to coordinate: GeoCoordinate, limit: Int) -> [Airport]
 
+    /// Search by ICAO, name, or municipality. Empty query returns [].
+    /// Results are capped at `limit` (ICAO prefix matches first).
+    func searchAirports(query: String, limit: Int) -> [Airport]
+
     /// Great-circle distance between two airports, in nautical miles.
     func distanceBetween(_ first: Airport, _ second: Airport) -> Double
 }
@@ -56,6 +60,39 @@ final class AirportService: AirportProviding, ObservableObject {
             .sorted { $0.1 < $1.1 }
             .prefix(limit)
             .map(\.0)
+    }
+
+    func searchAirports(query: String, limit: Int = 40) -> [Airport] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, limit > 0 else { return [] }
+
+        let needle = trimmed.uppercased()
+        var icaoPrefix: [Airport] = []
+        var icaoContains: [Airport] = []
+        var nameMatches: [Airport] = []
+
+        for airport in allAirports {
+            let icao = airport.icaoCode.uppercased()
+            if icao.hasPrefix(needle) {
+                icaoPrefix.append(airport)
+            } else if icao.contains(needle) {
+                icaoContains.append(airport)
+            } else if airport.name.uppercased().contains(needle)
+                || (airport.municipality?.uppercased().contains(needle) ?? false) {
+                nameMatches.append(airport)
+            }
+            if icaoPrefix.count >= limit { break }
+        }
+
+        var results: [Airport] = []
+        results.append(contentsOf: icaoPrefix)
+        if results.count < limit {
+            results.append(contentsOf: icaoContains.prefix(limit - results.count))
+        }
+        if results.count < limit {
+            results.append(contentsOf: nameMatches.prefix(limit - results.count))
+        }
+        return Array(results.prefix(limit))
     }
 
     func distanceBetween(_ first: Airport, _ second: Airport) -> Double {

@@ -10,9 +10,14 @@
 
 import Foundation
 
-/// The complete, ordered record of one flight session -- from the moment
-/// an aircraft was loaded to the moment it either completed normally or
-/// was aborted.
+/// The complete, ordered record of one flight -- from the moment an
+/// aircraft was loaded (preflight events) through takeoff to the moment
+/// it either completed normally or was aborted.
+///
+/// **Option A semantics:** the timeline begins at aircraft load so taxi
+/// and preflight events are preserved, but the *flight clock*
+/// (`takeoffTime` / `flightDurationSeconds`) starts only on
+/// `takeoffDetected`. UI should never call the app process a "session."
 ///
 /// This is deliberately *not* a replay system, persistence, or SwiftData
 /// model -- it's an in-memory timeline only. It reuses `FlightEvent`
@@ -56,24 +61,36 @@ struct FlightHistory: Identifiable, Equatable {
     /// `FlightHistoryService`).
     private(set) var endTime: Date?
 
-    /// The aircraft flying this session, if known -- read from the most
+    /// When `takeoffDetected` first fired on this history -- `nil` until
+    /// then. The flight clock and "current flight" identity start here,
+    /// not at `startTime` (aircraft load).
+    private(set) var takeoffTime: Date?
+
+    /// The aircraft flying this flight, if known -- read from the most
     /// recent event's `FlightAnalysis` snapshot, never tracked separately.
     var currentAircraft: ResolvedAircraft? { events.last?.analysis.resolvedAircraft }
 
-    /// The session's departure airport, if known -- same rationale as
-    /// `currentAircraft`.
+    /// Departure airport, if known -- same rationale as `currentAircraft`.
     var departureAirport: ResolvedAirport? { events.last?.analysis.resolvedDeparture }
 
-    /// The session's destination airport, if known -- same rationale as
-    /// `currentAircraft`.
+    /// Destination airport, if known -- same rationale as `currentAircraft`.
     var destinationAirport: ResolvedAirport? { events.last?.analysis.resolvedDestination }
 
-    /// Elapsed session duration as of the most recent event, if the
-    /// underlying `FlightAnalysis` has one. Because this history only ever
-    /// observes discrete `FlightEvent`s (never raw telemetry/`FlightContext`
-    /// directly, per this milestone's hard constraint), this is a
-    /// snapshot as-of-the-last-event, not a live ticking clock -- it only
-    /// advances when a new event actually fires.
+    /// True once takeoff has been recorded -- the unit of "one flight."
+    var hasStartedFlight: Bool { takeoffTime != nil }
+
+    /// Elapsed time from takeoff to the latest event (or `endTime` when
+    /// finalized). `nil` until takeoff. Snapshot as-of-last-event -- not a
+    /// live ticking clock (histories only advance on `FlightEvent`s).
+    var flightDurationSeconds: TimeInterval? {
+        guard let takeoffTime else { return nil }
+        let end = endTime ?? events.last?.timestamp
+        guard let end else { return nil }
+        return max(0, end.timeIntervalSince(takeoffTime))
+    }
+
+    /// Analysis-derived session metrics duration (aircraft-load based).
+    /// Prefer `flightDurationSeconds` for product UI (takeoff → end).
     var durationSeconds: TimeInterval? { events.last?.analysis.estimatedSessionDurationSeconds }
 
     /// Seeds a brand-new, `.active` history with its very first timeline
@@ -84,13 +101,18 @@ struct FlightHistory: Identifiable, Equatable {
         self.events = [firstEvent]
         self.status = .active
         self.endTime = nil
+        self.takeoffTime = firstEvent.type == .takeoffDetected ? firstEvent.timestamp : nil
     }
 
     /// Returns a copy with `event` appended to the end of the timeline.
-    /// Every existing entry is left untouched.
+    /// Every existing entry is left untouched. Latches `takeoffTime` on the
+    /// first `takeoffDetected` only (touch-and-goes keep the original clock).
     func appending(_ event: FlightEvent) -> FlightHistory {
         var copy = self
         copy.events.append(event)
+        if event.type == .takeoffDetected, copy.takeoffTime == nil {
+            copy.takeoffTime = event.timestamp
+        }
         return copy
     }
 

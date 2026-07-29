@@ -43,5 +43,6 @@ final class CountingAirportProvider: AirportProviding {
 
     func nearestAirport(to coordinate: GeoCoordinate) -> Airport? { base.nearestAirport(to: coordinate) }
     func nearestAirports(to coordinate: GeoCoordinate, limit: Int) -> [Airport] { base.nearestAirports(to: coordinate, limit: limit) }
+    func searchAirports(query: String, limit: Int) -> [Airport] { base.searchAirports(query: query, limit: limit) }
     func distanceBetween(_ first: Airport, _ second: Airport) -> Double { base.distanceBetween(first, second) }
 }

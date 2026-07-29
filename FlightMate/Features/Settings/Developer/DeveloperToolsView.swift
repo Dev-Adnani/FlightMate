@@ -2,16 +2,8 @@
 //  DeveloperToolsView.swift
 //  FlightMate
 //
-//  Internal diagnostics panel: raw telemetry, flight context/session state,
-//  flight analysis, and the event log, all in one place. Replaces the
-//  debug views that used to live directly on the Dashboard -- see
-//  ConnectionStatusCard for the polished, end-user-facing equivalent.
-//
-//  This is intentionally *not* styled like the rest of the app: dense,
-//  functional, unpolished by design, and never the default user
-//  experience. It exists to save time debugging telemetry issues,
-//  diagnosing main.mcf parsing problems, and verifying packet formats
-//  whenever Aerofly FS 4 updates.
+//  Internal diagnostics: telemetry, context, analysis, events, history.
+//  Dense and functional by design — not the product UI.
 //
 
 import SwiftUI
@@ -21,11 +13,12 @@ struct DeveloperToolsView: View {
     let flightContextEngine: FlightContextEngine
     let flightAnalysisEngine: FlightAnalysisEngine
     let flightEventEngine: FlightEventEngine
+    let flightHistoryEngine: FlightHistoryEngine
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text("Not intended for end users -- internal diagnostics for verifying telemetry, session parsing, and analysis output.")
+                Text("Internal diagnostics for verifying telemetry, session parsing, analysis, and history.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
@@ -37,6 +30,8 @@ struct DeveloperToolsView: View {
                 AnalysisInspectorDebugView(flightAnalysisEngine: flightAnalysisEngine)
                 Divider()
                 EventLogDebugView(flightEventEngine: flightEventEngine)
+                Divider()
+                FlightHistoryDebugView(flightHistoryEngine: flightHistoryEngine)
             }
             .padding()
         }
@@ -51,10 +46,12 @@ struct DeveloperToolsView: View {
         aeroflySessionService: AeroflySessionService()
     )
     let flightAnalysisEngine = FlightAnalysisEngine(flightContextEngine: flightContextEngine)
+    let flightEventEngine = FlightEventEngine(flightAnalysisEngine: flightAnalysisEngine)
     DeveloperToolsView(
         telemetryService: telemetryService,
         flightContextEngine: flightContextEngine,
         flightAnalysisEngine: flightAnalysisEngine,
-        flightEventEngine: FlightEventEngine(flightAnalysisEngine: flightAnalysisEngine)
+        flightEventEngine: flightEventEngine,
+        flightHistoryEngine: FlightHistoryEngine(flightEventEngine: flightEventEngine)
     )
 }

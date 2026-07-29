@@ -100,6 +100,26 @@ struct AeroflySessionServiceTests {
         #expect(service.session?.aircraft?.aeroflyCode == "b787_9")
     }
 
+    @Test func keepsLastSessionWhenFileIsBrieflyUnreadableDuringLoadedState() async throws {
+        let contents = MutableFileContentsBox(AeroflySessionFixtures.mainMcf(aircraft: "a350_1000"))
+        let watcher = FakeAeroflyFileWatching()
+        let service = makeService(contents: contents, watcher: watcher)
+        service.start()
+        #expect(service.session?.aircraft?.aeroflyCode == "a350_1000")
+        #expect(service.state == .loaded)
+
+        // Simulate mid-replace unreadable window, then recovery.
+        contents.contents = nil
+        watcher.simulateChange()
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(service.session?.aircraft?.aeroflyCode == "a350_1000")
+        #expect(service.state == .loaded)
+
+        contents.contents = AeroflySessionFixtures.mainMcf(aircraft: "b787_9")
+        try await waitUntilAeroflySession { service.session?.aircraft?.aeroflyCode == "b787_9" }
+        #expect(service.session?.aircraft?.aeroflyCode == "b787_9")
+    }
+
     @Test func doesNotRepublishSessionWhenReparsedValueIsUnchanged() async throws {
         let contents = MutableFileContentsBox(AeroflySessionFixtures.mainMcf())
         let watcher = FakeAeroflyFileWatching()
@@ -109,7 +129,7 @@ struct AeroflySessionServiceTests {
         let sessionBefore = service.session
         watcher.simulateChange() // contents unchanged
 
-        try await Task.sleep(for: .milliseconds(400))
+        try await Task.sleep(for: .milliseconds(700))
         // Equatable value is unchanged; a real regression here would only
         // be observable via Combine publisher counting, but this at least
         // asserts the published value itself stayed byte-for-byte equal.
@@ -120,10 +140,13 @@ struct AeroflySessionServiceTests {
         let watcher = FakeAeroflyFileWatching()
         let service = makeService(watcher: watcher)
         service.start()
+        // `start()` itself calls `stop()` first to reset any prior watch,
+        // so stopWatching has already been invoked once before this.
+        let stopsAfterStart = watcher.stopCallCount
 
         service.stop()
 
-        #expect(watcher.stopCallCount == 1)
+        #expect(watcher.stopCallCount == stopsAfterStart + 1)
     }
 }
 
@@ -132,7 +155,7 @@ struct AeroflySessionServiceTests {
 /// background `Task`.
 @MainActor
 private func waitUntilAeroflySession(
-    timeout: Duration = .seconds(1),
+    timeout: Duration = .seconds(2),
     _ condition: @MainActor () -> Bool
 ) async throws {
     let deadline = ContinuousClock.now + timeout

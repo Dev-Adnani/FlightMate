@@ -85,19 +85,32 @@ final class FlightContextEngine: ObservableObject {
     private func observeAeroflySession() {
         aeroflySessionService.$session
             .sink { [weak self] session in
-                self?.context.aeroflySession = session
+                guard let self else { return }
+                // Assign a fresh `FlightContext` value (rather than mutating
+                // a nested property in place) so `@Published` always emits
+                // and downstream engines (Analysis → Events → History → UI)
+                // see live main.mcf updates immediately.
+                var updated = self.context
+                updated.aeroflySession = session
+                self.context = updated
             }
             .store(in: &cancellables)
 
         aeroflySessionService.$state
             .sink { [weak self] state in
-                self?.context.aeroflySessionState = state
+                guard let self else { return }
+                var updated = self.context
+                updated.aeroflySessionState = state
+                self.context = updated
             }
             .store(in: &cancellables)
 
         aeroflySessionService.$lastValidationReport
             .sink { [weak self] report in
-                self?.context.aeroflySessionValidation = report
+                guard let self else { return }
+                var updated = self.context
+                updated.aeroflySessionValidation = report
+                self.context = updated
             }
             .store(in: &cancellables)
     }

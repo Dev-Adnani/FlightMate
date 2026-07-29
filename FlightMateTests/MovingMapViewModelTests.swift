@@ -11,7 +11,6 @@
 import Combine
 import CoreLocation
 import Foundation
-import Network
 import Testing
 @testable import FlightMate
 
@@ -26,11 +25,7 @@ struct MovingMapViewModelTests {
         let engines = makeEngines()
         // Throttling has its own dedicated test below -- disable it here
         // (interval 0) so this test only verifies the passthrough mapping
-        // itself, independent of timing. Without this, the synchronous
-        // "free" observation `MovingMapViewModel` takes at construction
-        // (of the session's already-known parked position, before any
-        // telemetry-driven update) would consume the default throttle
-        // window and could suppress the packets sent below.
+        // itself, independent of timing.
         let viewModel = MovingMapViewModel(
             flightContextEngine: engines.flightContextEngine,
             flightAnalysisEngine: engines.analysisEngine,
@@ -59,14 +54,11 @@ struct MovingMapViewModelTests {
             now: { clockBox.now }
         )
 
-        // `MovingMapViewModel` takes one synchronous "free" observation at
-        // construction time (the session's already-known parked position,
-        // since `flightContextEngine.$context` replays its current value
-        // to a new subscriber immediately). That consumes the very first
-        // throttle window at `clockBox.now`'s starting instant -- advance
-        // the clock past it before sending this test's own first probe
-        // packet, so the throttle behavior being tested here starts from
-        // a clean window.
+        // Initial `$context` delivery is async (`receive(on: DispatchQueue.main)`).
+        // Wait for that parked-position observation to consume the first
+        // throttle window at `clockBox.now`'s starting instant, then advance
+        // the clock so this test's probe packets start from a clean window.
+        try await waitUntil { viewModel.aircraftCoordinate != nil }
         clockBox.now = clockBox.now.addingTimeInterval(2)
         engines.listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,11.0,314.1,0.2".utf8))
         try await waitUntil { viewModel.aircraftCoordinate?.latitude == 19.0818 }
@@ -240,6 +232,7 @@ private final class MutableAirportProviding: AirportProviding {
     func airport(icao: String) -> Airport? { nil }
     func nearestAirport(to coordinate: GeoCoordinate) -> Airport? { nearestAirportToReturn }
     func nearestAirports(to coordinate: GeoCoordinate, limit: Int) -> [Airport] { [] }
+    func searchAirports(query: String, limit: Int) -> [Airport] { [] }
     func distanceBetween(_ first: Airport, _ second: Airport) -> Double { 0 }
 }
 

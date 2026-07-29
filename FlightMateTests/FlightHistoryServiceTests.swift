@@ -205,6 +205,53 @@ struct FlightHistoryServiceTests {
         history = history.appending(cruise)
         #expect(history.durationSeconds == 600)
     }
+
+    // MARK: - Takeoff clock (Option A)
+
+    @Test func takeoffTimeAndFlightDurationStartOnlyOnTakeoffDetected() {
+        let loaded = makeEvent(type: .aircraftLoaded, aircraftCode: "a320_neo", timestamp: t(0))
+        var state = FlightHistoryService.apply(event: loaded, to: .init(), maxCompletedHistories: 25)
+        state = FlightHistoryService.apply(
+            event: makeEvent(type: .enteredTaxi, timestamp: t(30)), to: state, maxCompletedHistories: 25
+        )
+
+        #expect(state.currentHistory?.takeoffTime == nil)
+        #expect(state.currentHistory?.hasStartedFlight == false)
+        #expect(state.currentHistory?.flightDurationSeconds == nil)
+
+        let takeoff = makeEvent(type: .takeoffDetected, timestamp: t(60))
+        state = FlightHistoryService.apply(event: takeoff, to: state, maxCompletedHistories: 25)
+        #expect(state.currentHistory?.takeoffTime == t(60))
+        #expect(state.currentHistory?.hasStartedFlight == true)
+        #expect(state.currentHistory?.flightDurationSeconds == 0)
+
+        state = FlightHistoryService.apply(
+            event: makeEvent(type: .enteredCruise, timestamp: t(360)), to: state, maxCompletedHistories: 25
+        )
+        #expect(state.currentHistory?.flightDurationSeconds == 300)
+
+        // Second takeoff (touch-and-go) does not reset the clock.
+        state = FlightHistoryService.apply(
+            event: makeEvent(type: .takeoffDetected, timestamp: t(400)), to: state, maxCompletedHistories: 25
+        )
+        #expect(state.currentHistory?.takeoffTime == t(60))
+    }
+
+    @Test func completedFlightDurationUsesEndTimeAfterTakeoff() {
+        var state = FlightHistoryService.apply(
+            event: makeEvent(type: .aircraftLoaded, timestamp: t(0)), to: .init(), maxCompletedHistories: 25
+        )
+        state = FlightHistoryService.apply(
+            event: makeEvent(type: .takeoffDetected, timestamp: t(100)), to: state, maxCompletedHistories: 25
+        )
+        state = FlightHistoryService.apply(
+            event: makeEvent(type: .flightCompleted, timestamp: t(700)), to: state, maxCompletedHistories: 25
+        )
+
+        let finished = state.completedHistories[0]
+        #expect(finished.takeoffTime == t(100))
+        #expect(finished.flightDurationSeconds == 600)
+    }
 }
 
 // MARK: - Test helpers

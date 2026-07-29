@@ -4,7 +4,7 @@
 //
 //  Exercises FlightContextEngine's live wiring to TelemetryService, without
 //  any real networking: packets are injected directly through UDPListener's
-//  public callback, exactly as Network.framework would invoke it.
+//  public callback, exactly as the live receive path would invoke it.
 //
 
 import Foundation

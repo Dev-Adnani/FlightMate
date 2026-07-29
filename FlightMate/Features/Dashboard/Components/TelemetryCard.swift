@@ -20,7 +20,7 @@ struct TelemetryCard: DashboardCard {
     var body: some View {
         CardContainer(title: cardTitle, systemImage: cardIcon) {
             VStack(alignment: .leading, spacing: Theme.Spacing.contentGap) {
-                LazyVGrid(columns: columns, alignment: .leading, spacing: Theme.Spacing.rowGap) {
+                LazyVGrid(columns: columns, alignment: .leading, spacing: Theme.Spacing.contentGap) {
                     metric(label: "Altitude", value: altitudeDisplay)
                     metric(label: "Ground Speed", value: groundSpeedDisplay)
                     metric(label: "Heading", value: headingDisplay)
@@ -35,13 +35,16 @@ struct TelemetryCard: DashboardCard {
     }
 
     private func metric(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(value)
-                .font(.body.monospacedDigit())
+                .font(.title3.weight(.semibold).monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
 

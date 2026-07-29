@@ -51,6 +51,28 @@ struct AirportServiceTests {
         #expect(service.nearestAirports(to: GeoCoordinate(latitude: 0, longitude: 0), limit: 0).isEmpty)
     }
 
+    @Test func searchAirportsPrefersICAOPrefix() {
+        let service = makeService()
+
+        let results = service.searchAirports(query: "AA", limit: 10)
+
+        #expect(results.first?.icaoCode == "AAAA")
+    }
+
+    @Test func searchAirportsMatchesName() {
+        let service = makeService()
+
+        let results = service.searchAirports(query: ReferenceDataFixtures.origin.name, limit: 10)
+
+        #expect(results.contains(ReferenceDataFixtures.origin))
+    }
+
+    @Test func searchAirportsEmptyQueryReturnsNothing() {
+        let service = makeService()
+
+        #expect(service.searchAirports(query: "   ", limit: 10).isEmpty)
+    }
+
     @Test func distanceBetweenMatchesGeoDistance() {
         let service = makeService()
 

@@ -2,9 +2,8 @@
 //  SettingsView.swift
 //  FlightMate
 //
-//  App preferences and configuration, plus the Developer Tools diagnostics
-//  panel (see DeveloperToolsView) that replaces the debug views that used
-//  to live directly on the Dashboard.
+//  About + Developer diagnostics. Preference panes appear when there is
+//  real state to configure — not as empty placeholders.
 //
 
 import SwiftUI
@@ -16,14 +15,16 @@ struct SettingsView: View {
         telemetryService: TelemetryService,
         flightContextEngine: FlightContextEngine,
         flightAnalysisEngine: FlightAnalysisEngine,
-        flightEventEngine: FlightEventEngine
+        flightEventEngine: FlightEventEngine,
+        flightHistoryEngine: FlightHistoryEngine
     ) {
         _viewModel = StateObject(
             wrappedValue: SettingsViewModel(
                 telemetryService: telemetryService,
                 flightContextEngine: flightContextEngine,
                 flightAnalysisEngine: flightAnalysisEngine,
-                flightEventEngine: flightEventEngine
+                flightEventEngine: flightEventEngine,
+                flightHistoryEngine: flightHistoryEngine
             )
         )
     }
@@ -38,24 +39,20 @@ struct SettingsView: View {
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 180)
         } detail: {
-            destinationView(for: viewModel.selectedSection)
+            switch viewModel.selectedSection {
+            case .about:
+                SettingsAboutView()
+            case .developer:
+                DeveloperToolsView(
+                    telemetryService: viewModel.telemetryService,
+                    flightContextEngine: viewModel.flightContextEngine,
+                    flightAnalysisEngine: viewModel.flightAnalysisEngine,
+                    flightEventEngine: viewModel.flightEventEngine,
+                    flightHistoryEngine: viewModel.flightHistoryEngine
+                )
+            }
         }
         .navigationTitle("Settings")
-    }
-
-    @ViewBuilder
-    private func destinationView(for section: SettingsSection) -> some View {
-        switch section {
-        case .general, .appearance, .ai, .telemetry:
-            SettingsComingSoonView(section: section)
-        case .developer:
-            DeveloperToolsView(
-                telemetryService: viewModel.telemetryService,
-                flightContextEngine: viewModel.flightContextEngine,
-                flightAnalysisEngine: viewModel.flightAnalysisEngine,
-                flightEventEngine: viewModel.flightEventEngine
-            )
-        }
     }
 }
 
@@ -66,10 +63,12 @@ struct SettingsView: View {
         aeroflySessionService: AeroflySessionService()
     )
     let flightAnalysisEngine = FlightAnalysisEngine(flightContextEngine: flightContextEngine)
+    let flightEventEngine = FlightEventEngine(flightAnalysisEngine: flightAnalysisEngine)
     SettingsView(
         telemetryService: telemetryService,
         flightContextEngine: flightContextEngine,
         flightAnalysisEngine: flightAnalysisEngine,
-        flightEventEngine: FlightEventEngine(flightAnalysisEngine: flightAnalysisEngine)
+        flightEventEngine: flightEventEngine,
+        flightHistoryEngine: FlightHistoryEngine(flightEventEngine: flightEventEngine)
     )
 }

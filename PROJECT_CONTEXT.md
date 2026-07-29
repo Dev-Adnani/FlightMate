@@ -36,7 +36,8 @@ SwiftUI
 
 MVVM
 
-Network.framework
+Network.framework (app-level); BSD sockets for UDP telemetry receive
+(Aerofly broadcasts — `NWListener` is a poor fit; see `UDPListener`)
 
 SwiftData
 

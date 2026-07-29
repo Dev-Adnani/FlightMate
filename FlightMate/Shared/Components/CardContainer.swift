@@ -2,19 +2,15 @@
 //  CardContainer.swift
 //  FlightMate
 //
-//  Reusable SwiftUI components shared across Features live in this folder.
+//  Shared visual chrome for dashboard-style cards: quiet surface, clear
+//  title, content fills the bento cell evenly.
 //
 
 import SwiftUI
 
-/// The shared visual chrome every dashboard-style card is built from: a
-/// title row (SF Symbol + label) over caller-supplied content, on a
-/// rounded, material background.
+/// Shared card chrome: title row + content on a quiet rounded surface.
 ///
-/// Deliberately generic and feature-agnostic -- nothing here knows about
-/// flights, telemetry, or aviation -- so any future screen (Statistics,
-/// Checklist Progress, Weather) can reuse the exact same card look without
-/// duplicating this styling.
+/// Fills its parent cell so bento rows stay even.
 struct CardContainer<Content: View>: View {
     let title: String
     let systemImage: String
@@ -23,26 +19,32 @@ struct CardContainer<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.contentGap) {
             Label(title, systemImage: systemImage)
-                .font(.headline)
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
+                .labelStyle(.titleAndIcon)
                 .accessibilityAddTraits(.isHeader)
 
             content()
+            Spacer(minLength: 0)
         }
         .padding(Theme.Spacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
-            .regularMaterial,
-            in: RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius, style: .continuous)
+                .fill(Color.primary.opacity(0.035))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
         )
         .accessibilityElement(children: .contain)
     }
 }
 
 #Preview {
-    CardContainer(title: "Example Card", systemImage: "airplane") {
-        Text("Card content goes here.")
+    CardContainer(title: "Example", systemImage: "airplane") {
+        Text("Content")
     }
     .padding()
-    .frame(width: 320)
+    .frame(width: 320, height: 160)
 }

@@ -8,7 +8,6 @@
 
 import Combine
 import Foundation
-import Network
 
 /// Coordinates raw UDP ingestion from Aerofly FS 4 and publishes connection
 /// health and raw packets for the rest of the app to consume.
@@ -96,7 +95,7 @@ final class TelemetryService: ObservableObject {
     // MARK: - Init
 
     /// - Parameter listener: Injectable for testing. Defaults to a real
-    ///   `UDPListener` backed by `Network.framework`.
+    ///   `UDPListener` backed by BSD sockets.
     init(listener: UDPListener = UDPListener()) {
         self.listener = listener
         (rawPackets, packetContinuation) = AsyncStream.makeStream(of: Data.self, bufferingPolicy: .bufferingNewest(64))
@@ -182,7 +181,7 @@ final class TelemetryService: ObservableObject {
         packetContinuation.yield(data)
     }
 
-    private func handleStateChange(_ state: NWListener.State) {
+    private func handleStateChange(_ state: UDPListener.State) {
         switch state {
         case .ready:
             status = .listening
@@ -194,17 +193,12 @@ final class TelemetryService: ObservableObject {
             startContinuation = nil
         case .cancelled:
             status = .idle
-        default:
-            break
         }
     }
 
     /// Only a `.listener`-scoped failure means the whole service is down —
-    /// a `.connection`-scoped failure (e.g. one sender's pseudo-connection
-    /// hitting `EADDRINUSE` because another process is racing for the same
-    /// port) is isolated to that one sender and does not affect the
-    /// listener's ability to keep receiving from anyone else, so it must
-    /// not be allowed to flip `status` away from `.listening`.
+    /// a `.connection`-scoped failure is a non-fatal single-read glitch and
+    /// must not flip `status` away from `.listening`.
     private func handleFailure(_ error: UDPListener.ListenerError, scope: UDPListener.FailureScope) {
         guard scope == .listener else { return }
         status = .failed(error.localizedDescription)

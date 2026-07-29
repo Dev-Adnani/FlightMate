@@ -37,7 +37,7 @@ struct FlightHistoryDebugView: View {
 
             Divider()
 
-            Text("Completed This Session (\(flightHistoryEngine.completedHistories.count))")
+            Text("Earlier Flights (\(flightHistoryEngine.completedHistories.count))")
                 .font(.headline)
 
             if flightHistoryEngine.completedHistories.isEmpty {
@@ -83,9 +83,14 @@ struct FlightHistoryDebugView: View {
                 Text(history.destinationAirport?.icaoCode ?? "—")
             }
             GridRow {
+                Text("Takeoff")
+                    .foregroundStyle(.secondary)
+                Text(history.takeoffTime.map { $0.formatted(date: .omitted, time: .standard) } ?? "—")
+            }
+            GridRow {
                 Text("Duration")
                     .foregroundStyle(.secondary)
-                Text(durationDescription(history.durationSeconds))
+                Text(durationDescription(history.flightDurationSeconds))
             }
         }
     }

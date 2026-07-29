@@ -6,11 +6,10 @@
 //  from Aerofly FS 4.
 //
 
+import Darwin
 import Foundation
-import Network
 
-/// A minimal, transport-only UDP receiver built directly on Apple's
-/// `Network.framework`.
+/// A minimal, transport-only UDP receiver built on BSD sockets.
 ///
 /// ## Responsibilities
 /// `UDPListener` binds a UDP port and receives raw datagrams from *any*
@@ -18,34 +17,30 @@ import Network
 /// format — its only job is to bind, receive bytes, and hand them upward
 /// unmodified. Parsing/decoding is intentionally left to a later layer.
 ///
-/// ## Why `NWListener` instead of `NWConnection`?
-/// UDP is connectionless, but `Network.framework` still models each unique
-/// remote endpoint (Aerofly's host + source port) as a lightweight
-/// `NWConnection`, so datagrams can be read with the same `receive` APIs
-/// used for TCP. `NWListener.newConnectionHandler` fires once per unique
-/// remote endpoint; every subsequent datagram from that same endpoint is
-/// then delivered on the associated `NWConnection`.
+/// ## Why BSD sockets instead of `Network.framework`?
+/// Aerofly FS 4 sends ForeFlight-style telemetry as **UDP broadcast**
+/// (e.g. to `192.168.x.255:49002`). Apple's `NWListener` models each
+/// remote sender as a pseudo-`NWConnection`, which is a poor fit for
+/// connectionless broadcast: starting FlightMate while the sim is already
+/// transmitting produces a flood of
+/// `nw_listener_inbox_accept_udp connect failed [48: Address already in use]`
+/// console lines and flaky accepts. Apple DTS guidance for broadcast UDP
+/// is to use BSD sockets (`recvfrom`) instead.
 ///
 /// ## Interface binding
-/// `start(port:)` creates the listener with only a port — no host — which
-/// tells the OS to bind across all local interfaces rather than a single
-/// hardcoded address such as `127.0.0.1`. This matters because Aerofly FS 4
-/// may run on the same Mac (loopback) or on another machine on the local
-/// network, and the app must not assume either case.
+/// `start(port:)` binds `INADDR_ANY` (all IPv4 interfaces) so datagrams
+/// arrive whether Aerofly is on the same Mac (including broadcast on the
+/// LAN interface) or elsewhere on the local network.
 ///
 /// ## Thread safety
-/// Every `Network.framework` callback for this instance (listener state,
-/// connection state, and packet receipt) is funneled through a single
-/// private serial `DispatchQueue`. This keeps internal state mutation-safe
-/// without needing locks or an actor.
+/// Socket I/O and state mutation run on a single private serial
+/// `DispatchQueue`. Callbacks are invoked on that queue — never the main
+/// thread. `TelemetryService` hops results back onto the main actor.
 ///
 /// This project defaults every type to `@MainActor` isolation
 /// (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`), but `UDPListener` is
-/// explicitly `nonisolated`: its callbacks intentionally arrive on a
-/// background queue, and `TelemetryService` is responsible for hopping the
-/// results back onto the main actor. `@unchecked Sendable` reflects that
-/// safety is enforced manually via the serial queue above, not by the
-/// Swift concurrency checker.
+/// explicitly `nonisolated`. `@unchecked Sendable` reflects that safety is
+/// enforced manually via the serial queue above.
 nonisolated final class UDPListener: @unchecked Sendable {
 
     // MARK: - Errors
@@ -57,7 +52,7 @@ nonisolated final class UDPListener: @unchecked Sendable {
         case invalidPort(UInt16)
         /// `start(port:)` was called while a listener was already active.
         case alreadyRunning
-        /// The underlying listener or one of its connections failed.
+        /// The underlying socket failed (bind, read, etc.).
         case transport(Error)
 
         var errorDescription: String? {
@@ -72,27 +67,28 @@ nonisolated final class UDPListener: @unchecked Sendable {
         }
     }
 
-    /// Distinguishes a fatal, whole-listener failure from a failure isolated
-    /// to a single sender's pseudo-connection, so `onFailure` observers can
-    /// tell whether the entire listener is down or just one sender was
-    /// dropped while the listener keeps running normally for everyone else.
-    ///
-    /// This matters in practice: when two processes race to bind the same
-    /// UDP port (see `allowLocalEndpointReuse` below), the listener-level
-    /// bind can succeed for both, but the OS then refuses to let more than
-    /// one of them "connect" a per-sender socket to the exact same remote
-    /// endpoint — surfacing as a `.connection`-scoped `EADDRINUSE` for one
-    /// packet, not a `.listener`-scoped failure. That single sender is
-    /// unaffected the moment its next packet re-triggers `accept(_:)`, so
-    /// treating it as fatal to the whole service would be misleading.
+    /// Distinguishes a fatal, whole-listener failure from a transient
+    /// per-datagram read issue. With BSD sockets there is no per-sender
+    /// connection object; `.connection` is retained only so existing
+    /// `TelemetryService` call sites stay stable and can ignore non-fatal
+    /// read glitches without flipping the whole service to `.failed`.
     enum FailureScope {
         /// The listener itself failed. No further packets can be received
         /// until `start(port:)` is called again.
         case listener
-        /// One sender's pseudo-connection failed. The listener is still
-        /// bound and healthy — the next packet from that sender (or any
-        /// other) is received normally.
+        /// A single `recvfrom` failed in a non-fatal way. The socket is
+        /// still bound; subsequent datagrams are received normally.
         case connection
+    }
+
+    /// Lifecycle of the bound socket, reported via `onStateChange`.
+    enum State {
+        /// Socket is bound and the read source is active.
+        case ready
+        /// Bind or setup failed. Associated error is suitable for UI/logging.
+        case failed(Error)
+        /// `stop()` tore the socket down (or it was never started).
+        case cancelled
     }
 
     // MARK: - Callbacks
@@ -105,10 +101,10 @@ nonisolated final class UDPListener: @unchecked Sendable {
     var onPacketReceived: ((Data) -> Void)?
 
     /// Invoked whenever the listener's own state transitions
-    /// (`.setup` → `.ready`, `.failed`, `.cancelled`, etc.).
-    var onStateChange: ((NWListener.State) -> Void)?
+    /// (`.ready`, `.failed`, `.cancelled`).
+    var onStateChange: ((State) -> Void)?
 
-    /// Invoked when the listener or one of its per-sender connections fails.
+    /// Invoked when the listener fails or a non-fatal read error occurs.
     /// This does not automatically stop the listener; call `stop()` if a
     /// failure should be treated as terminal. `scope` tells the caller
     /// which of those two cases this is — see `FailureScope`.
@@ -116,16 +112,12 @@ nonisolated final class UDPListener: @unchecked Sendable {
 
     // MARK: - Private state
 
-    private var listener: NWListener?
-
-    /// One pseudo-connection per unique remote (host, port) pair that has
-    /// sent us a datagram. Keyed by object identity since `NWConnection` is
-    /// a reference type without a natural stable key.
-    private var connections: [ObjectIdentifier: NWConnection] = [:]
-
-    /// All Network.framework callbacks are scheduled on this single serial
-    /// queue, which is what makes mutating `connections` above safe.
+    /// All socket I/O and mutation of the fields below happen on this queue.
     private let queue = DispatchQueue(label: "com.flightmate.udplistener")
+
+    private var socketFD: Int32 = -1
+    private var readSource: DispatchSourceRead?
+    private var isRunning = false
 
     // MARK: - Lifecycle
 
@@ -136,110 +128,129 @@ nonisolated final class UDPListener: @unchecked Sendable {
     /// port to the rest of the app.
     ///
     /// - Parameter port: The UDP port to bind. Must be non-zero.
-    /// - Throws: `ListenerError.invalidPort` if `port` cannot be represented
-    ///   as a valid `NWEndpoint.Port`; `ListenerError.alreadyRunning` if a
-    ///   listener is already active; or `ListenerError.transport` if the OS
-    ///   refuses to create the listener outright (e.g. the port is already
-    ///   in use by another process).
+    /// - Throws: `ListenerError.invalidPort` if `port` is zero;
+    ///   `ListenerError.alreadyRunning` if a listener is already active;
+    ///   or `ListenerError.transport` if the OS refuses to create or bind
+    ///   the socket (e.g. another process already owns the port exclusively).
     func start(port: UInt16) throws {
-        guard listener == nil else {
-            throw ListenerError.alreadyRunning
-        }
-        guard let nwPort = NWEndpoint.Port(rawValue: port) else {
-            throw ListenerError.invalidPort(port)
+        try queue.sync {
+            guard !isRunning else {
+                throw ListenerError.alreadyRunning
+            }
+            guard port > 0 else {
+                throw ListenerError.invalidPort(port)
+            }
+
+            let fd = Darwin.socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+            guard fd >= 0 else {
+                throw ListenerError.transport(POSIXError(errnoCode))
+            }
+
+            // Allow rebinding soon after a previous FlightMate process exits,
+            // without waiting for the OS TIME_WAIT-style hold. Deliberately
+            // *not* SO_REUSEPORT: sharing the port with a second live process
+            // is what produced silent dual-binds and per-packet EADDRINUSE
+            // spam under the old NWListener path.
+            var reuse: Int32 = 1
+            if setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, socklen_t(MemoryLayout.size(ofValue: reuse))) < 0 {
+                let error = POSIXError(errnoCode)
+                Darwin.close(fd)
+                throw ListenerError.transport(error)
+            }
+
+            var address = sockaddr_in()
+            address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+            address.sin_family = sa_family_t(AF_INET)
+            address.sin_port = in_port_t(port.bigEndian)
+            address.sin_addr = in_addr(s_addr: INADDR_ANY.bigEndian)
+
+            let bindResult = withUnsafePointer(to: &address) { addressPtr in
+                addressPtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                    Darwin.bind(fd, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+            guard bindResult == 0 else {
+                let error = POSIXError(errnoCode)
+                Darwin.close(fd)
+                throw ListenerError.transport(error)
+            }
+
+            let flags = fcntl(fd, F_GETFL, 0)
+            guard flags >= 0, fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0 else {
+                let error = POSIXError(errnoCode)
+                Darwin.close(fd)
+                throw ListenerError.transport(error)
+            }
+
+            let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
+            source.setEventHandler { [weak self] in
+                self?.drainAvailableDatagrams()
+            }
+            source.setCancelHandler { [weak self] in
+                Darwin.close(fd)
+                self?.socketFD = -1
+            }
+
+            socketFD = fd
+            readSource = source
+            isRunning = true
+            source.resume()
         }
 
-        let parameters: NWParameters = .udp
-        // Allows quick restarts on the same port during development without
-        // waiting on the OS to release the previous socket.
-        parameters.allowLocalEndpointReuse = true
-
-        let newListener: NWListener
-        do {
-            // No host is specified, so the OS binds across all local
-            // interfaces (loopback + LAN) instead of a single hardcoded
-            // address such as "localhost".
-            newListener = try NWListener(using: parameters, on: nwPort)
-        } catch {
-            throw ListenerError.transport(error)
-        }
-
-        newListener.stateUpdateHandler = { [weak self] state in
-            self?.handleStateChange(state)
-        }
-        newListener.newConnectionHandler = { [weak self] connection in
-            self?.accept(connection)
-        }
-
-        listener = newListener
-        newListener.start(queue: queue)
+        // Fire outside `queue.sync` so observers can safely call back into
+        // `stop()` / `start(port:)` without deadlocking on the same queue.
+        onStateChange?(.ready)
     }
 
-    /// Stops listening and tears down every in-flight pseudo-connection.
-    /// Safe to call even if the listener was never started.
+    /// Stops listening and closes the socket. Safe to call even if the
+    /// listener was never started.
     func stop() {
-        listener?.cancel()
-        listener = nil
-        connections.values.forEach { $0.cancel() }
-        connections.removeAll()
-    }
-
-    // MARK: - Listener state
-
-    private func handleStateChange(_ state: NWListener.State) {
-        onStateChange?(state)
-        if case .failed(let error) = state {
-            onFailure?(.transport(error), .listener)
+        queue.sync {
+            tearDown(emitCancelled: true)
         }
     }
 
-    // MARK: - Per-sender connection handling
+    // MARK: - Receive loop
 
-    /// Accepts a new pseudo-connection representing a distinct remote sender
-    /// and begins receiving datagrams from it.
-    ///
-    /// Every inbound endpoint is accepted unconditionally: Aerofly's host
-    /// and source port are not known ahead of time, so the listener cannot
-    /// filter by sender at this layer.
-    private func accept(_ connection: NWConnection) {
-        let id = ObjectIdentifier(connection)
-        connections[id] = connection
+    /// Reads every datagram currently queued on the non-blocking socket.
+    /// Invoked from the `DispatchSourceRead` event handler on `queue`.
+    private func drainAvailableDatagrams() {
+        guard socketFD >= 0 else { return }
 
-        connection.stateUpdateHandler = { [weak self, weak connection] state in
-            switch state {
-            case .failed(let error):
-                self?.onFailure?(.transport(error), .connection)
-                connection?.cancel()
-                self?.connections.removeValue(forKey: id)
-            case .cancelled:
-                self?.connections.removeValue(forKey: id)
-            default:
-                break
-            }
-        }
-
-        connection.start(queue: queue)
-        receiveNextPacket(on: connection)
-    }
-
-    /// Reads one datagram and immediately schedules the next read, so the
-    /// connection keeps receiving for as long as it stays alive.
-    private func receiveNextPacket(on connection: NWConnection) {
-        connection.receiveMessage { [weak self, weak connection] data, _, _, error in
-            guard let self else { return }
-
-            if let data, !data.isEmpty {
-                self.onPacketReceived?(data)
-            }
-
-            if let error {
-                self.onFailure?(.transport(error), .connection)
-                connection?.cancel()
+        var buffer = [UInt8](repeating: 0, count: 65_535)
+        while true {
+            let received = recvfrom(socketFD, &buffer, buffer.count, 0, nil, nil)
+            if received < 0 {
+                let code = errno
+                if code == EAGAIN || code == EWOULDBLOCK {
+                    break
+                }
+                let error = ListenerError.transport(POSIXError(POSIXError.Code(rawValue: code) ?? .EIO))
+                onFailure?(error, .listener)
+                onStateChange?(.failed(error))
+                tearDown(emitCancelled: false)
                 return
             }
-
-            guard let connection else { return }
-            self.receiveNextPacket(on: connection)
+            if received == 0 {
+                continue
+            }
+            onPacketReceived?(Data(buffer[0..<received]))
         }
+    }
+
+    /// Cancels the read source and clears running state. Must be called on
+    /// `queue`. The cancel handler closes the file descriptor.
+    private func tearDown(emitCancelled: Bool) {
+        guard isRunning || readSource != nil else { return }
+        isRunning = false
+        readSource?.cancel()
+        readSource = nil
+        if emitCancelled {
+            onStateChange?(.cancelled)
+        }
+    }
+
+    private var errnoCode: POSIXError.Code {
+        POSIXError.Code(rawValue: errno) ?? .EIO
     }
 }

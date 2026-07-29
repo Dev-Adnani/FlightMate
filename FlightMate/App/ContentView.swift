@@ -18,6 +18,8 @@ struct ContentView: View {
     let flightHistoryEngine: FlightHistoryEngine
     let mapTrailService: MapTrailService
     let aircraftAssetManager: AircraftAssetManaging
+    let aircraftProvider: AircraftProviding
+    let airportProvider: AirportProviding
 
     var body: some View {
         NavigationSplitView {
@@ -27,7 +29,7 @@ struct ContentView: View {
                         .tag(destination)
                 }
             }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
+            .navigationSplitViewColumnWidth(min: 180, ideal: Theme.Layout.sidebarIdeal)
             .navigationTitle("FlightMate")
         } detail: {
             destinationView(for: selection ?? .dashboard)
@@ -54,15 +56,23 @@ struct ContentView: View {
         case .flightHistory:
             FlightHistoryView(flightHistoryEngine: flightHistoryEngine)
         case .airports:
-            AirportView()
+            AirportView(
+                airportProvider: airportProvider,
+                flightAnalysisEngine: flightAnalysisEngine
+            )
         case .aircraft:
-            AircraftView()
+            AircraftView(
+                aircraftProvider: aircraftProvider,
+                flightAnalysisEngine: flightAnalysisEngine,
+                aircraftAssetManager: aircraftAssetManager
+            )
         case .settings:
             SettingsView(
                 telemetryService: telemetryService,
                 flightContextEngine: flightContextEngine,
                 flightAnalysisEngine: flightAnalysisEngine,
-                flightEventEngine: flightEventEngine
+                flightEventEngine: flightEventEngine,
+                flightHistoryEngine: flightHistoryEngine
             )
         }
     }
@@ -87,6 +97,8 @@ struct ContentView: View {
             flightContextEngine: flightContextEngine,
             flightHistoryEngine: flightHistoryEngine
         ),
-        aircraftAssetManager: AircraftAssetManager()
+        aircraftAssetManager: AircraftAssetManager(),
+        aircraftProvider: AircraftService(),
+        airportProvider: AirportService()
     )
 }

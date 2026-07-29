@@ -203,6 +203,7 @@ private final class FakeAirportProviding: AirportProviding {
     func airport(icao: String) -> Airport? { nil }
     func nearestAirport(to coordinate: GeoCoordinate) -> Airport? { nil }
     func nearestAirports(to coordinate: GeoCoordinate, limit: Int) -> [Airport] { [] }
+    func searchAirports(query: String, limit: Int) -> [Airport] { [] }
     func distanceBetween(_ first: Airport, _ second: Airport) -> Double { 0 }
 }
 

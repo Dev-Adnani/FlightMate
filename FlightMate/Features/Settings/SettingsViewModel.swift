@@ -2,11 +2,7 @@
 //  SettingsViewModel.swift
 //  FlightMate
 //
-//  Drives SettingsView. Mostly a passthrough today -- Settings has no
-//  derived/business state of its own yet -- but gives Developer Tools a
-//  single, consistent place to receive the engines it displays raw, and
-//  gives future General/Appearance/AI/Telemetry sections a home for real
-//  preferences later.
+//  Passthrough holder for Settings destinations and Developer diagnostics.
 //
 
 import Combine
@@ -14,22 +10,25 @@ import Foundation
 
 @MainActor
 final class SettingsViewModel: ObservableObject {
-    @Published var selectedSection: SettingsSection = .general
+    @Published var selectedSection: SettingsSection = .about
 
     let telemetryService: TelemetryService
     let flightContextEngine: FlightContextEngine
     let flightAnalysisEngine: FlightAnalysisEngine
     let flightEventEngine: FlightEventEngine
+    let flightHistoryEngine: FlightHistoryEngine
 
     init(
         telemetryService: TelemetryService,
         flightContextEngine: FlightContextEngine,
         flightAnalysisEngine: FlightAnalysisEngine,
-        flightEventEngine: FlightEventEngine
+        flightEventEngine: FlightEventEngine,
+        flightHistoryEngine: FlightHistoryEngine
     ) {
         self.telemetryService = telemetryService
         self.flightContextEngine = flightContextEngine
         self.flightAnalysisEngine = flightAnalysisEngine
         self.flightEventEngine = flightEventEngine
+        self.flightHistoryEngine = flightHistoryEngine
     }
 }

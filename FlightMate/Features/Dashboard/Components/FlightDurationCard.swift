@@ -2,13 +2,12 @@
 //  FlightDurationCard.swift
 //  FlightMate
 //
-//  Dashboard card: "How long have I been flying?"
+//  Dashboard card: "How long have I been flying?" (clock starts at takeoff).
 //
 
 import SwiftUI
 
-/// Shows the current flight's elapsed duration, its status, and how many
-/// flights have completed this session.
+/// Shows the current flight's takeoff-based duration and status.
 struct FlightDurationCard: DashboardCard {
     let model: FlightDurationCardModel
 
@@ -19,17 +18,24 @@ struct FlightDurationCard: DashboardCard {
         CardContainer(title: cardTitle, systemImage: cardIcon) {
             VStack(alignment: .leading, spacing: Theme.Spacing.rowGap) {
                 Text(model.durationDisplay ?? "—")
-                    .font(.system(size: 28, weight: .semibold, design: .rounded))
+                    .font(Theme.Typography.heroMetric)
                     .monospacedDigit()
+                    .foregroundStyle(.primary)
 
-                StatusBadge(level: model.flightStatusLevel, label: model.flightStatusLabel)
+                Text(model.flightStatusLabel)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.color(for: model.flightStatusLevel))
 
-                Text("\(model.completedFlightsThisSessionCount) flight(s) completed this session")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if let secondaryLine = model.secondaryLine {
+                    Text(secondaryLine)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
-        .accessibilityLabel("Flight duration: \(model.durationDisplay ?? "none"), \(model.flightStatusLabel)")
+        .accessibilityLabel(
+            "Flight duration: \(model.durationDisplay ?? "none"), \(model.flightStatusLabel)"
+        )
     }
 }
 

@@ -86,21 +86,33 @@ final class MovingMapViewModel: ObservableObject {
         self.minimumPositionUpdateInterval = minimumPositionUpdateInterval
         self.now = now
 
+        // `receive(on:)` + explicit `async` hop so `@Published` writes never
+        // land inside SwiftUI/`@StateObject` construction or a MapKit layout
+        // pass ("Publishing changes from within view updates is not allowed").
         flightContextEngine.$context
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] context in
-                self?.handle(context)
+                DispatchQueue.main.async {
+                    self?.handle(context)
+                }
             }
             .store(in: &cancellables)
 
         flightAnalysisEngine.$analysis
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] analysis in
-                self?.handle(analysis)
+                DispatchQueue.main.async {
+                    self?.handle(analysis)
+                }
             }
             .store(in: &cancellables)
 
         mapTrailService.$trail
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] trail in
-                self?.trailCoordinates = trail.map { $0.coordinate.clLocationCoordinate }
+                DispatchQueue.main.async {
+                    self?.trailCoordinates = trail.map { $0.coordinate.clLocationCoordinate }
+                }
             }
             .store(in: &cancellables)
     }

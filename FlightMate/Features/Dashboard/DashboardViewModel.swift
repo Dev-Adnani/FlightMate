@@ -59,34 +59,48 @@ final class DashboardViewModel: ObservableObject {
         latestContext = flightContextEngine.context
         latestAnalysis = flightAnalysisEngine.analysis
 
-        refreshContextDerivedCards()
-        refreshAnalysisDerivedCards()
-        updateRecentEvents(flightEventEngine.events)
-        updateFlightDuration(current: flightHistoryEngine.currentHistory, completed: flightHistoryEngine.completedHistories)
-
+        // Deliveries are scheduled asynchronously on the main queue so
+        // `@Published` mutations never happen synchronously inside a
+        // SwiftUI view update (View/`@StateObject` construction, or an
+        // overlapping MapKit layout pass). `receive(on:)` plus an explicit
+        // `async` hop is deliberate — engine publishes can otherwise land
+        // inside a view/layout turn and trip "Publishing changes from
+        // within view updates is not allowed".
         flightContextEngine.$context
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] context in
-                self?.latestContext = context
-                self?.refreshContextDerivedCards()
+                DispatchQueue.main.async {
+                    self?.latestContext = context
+                    self?.refreshContextDerivedCards()
+                }
             }
             .store(in: &cancellables)
 
         flightAnalysisEngine.$analysis
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] analysis in
-                self?.latestAnalysis = analysis
-                self?.refreshAnalysisDerivedCards()
+                DispatchQueue.main.async {
+                    self?.latestAnalysis = analysis
+                    self?.refreshAnalysisDerivedCards()
+                }
             }
             .store(in: &cancellables)
 
         flightEventEngine.$events
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] events in
-                self?.updateRecentEvents(events)
+                DispatchQueue.main.async {
+                    self?.updateRecentEvents(events)
+                }
             }
             .store(in: &cancellables)
 
         Publishers.CombineLatest(flightHistoryEngine.$currentHistory, flightHistoryEngine.$completedHistories)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] current, completed in
-                self?.updateFlightDuration(current: current, completed: completed)
+                DispatchQueue.main.async {
+                    self?.updateFlightDuration(current: current, completed: completed)
+                }
             }
             .store(in: &cancellables)
     }
