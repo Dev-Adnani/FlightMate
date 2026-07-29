@@ -1,0 +1,843 @@
+{
+  "id": "cold_and_dark",
+  "title": "Cold & Dark Startup",
+  "aircraft": "a320_neo",
+  "version": 1,
+  "estimatedMinutes": 15,
+  "difficulty": "beginner",
+  "fidelity": "aerofly_verified",
+  "disclaimer": "For Aerofly FS 4 learning only. Not for real-world flight training or operations.",
+  "sources": [
+    {
+      "title": "Aerofly A320 Flight Tutorial — Cockpit Preparation through Engine Start",
+      "url": "https://www.aerofly.com/aircraft-tutorials/a320/"
+    }
+  ],
+  "sections": [
+    {
+      "id": "power_on",
+      "title": "Power On",
+      "order": 1,
+      "steps": [
+        {
+          "id": "safety_checks",
+          "order": 1,
+          "title": "Safety checks",
+          "instruction": "Confirm wipers and weather radar are OFF. Landing gear lever DOWN. Both ENG MASTER switches OFF. Engine mode selector NORMAL.",
+          "purpose": "Avoid unintended system activation when electrical power comes online.",
+          "location": {
+            "panel": "Overhead / Pedestal",
+            "section": "Lights, radar, landing gear, engine controls",
+            "hint": "Scan overhead weather radar and wipers, then pedestal engine masters and gear lever."
+          },
+          "expectedResult": [
+            "Wipers off",
+            "Weather radar off",
+            "Gear lever down",
+            "ENG masters OFF",
+            "Mode selector NORMAL"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 30
+        },
+        {
+          "id": "battery_voltage",
+          "order": 2,
+          "title": "Battery voltage",
+          "instruction": "Check battery voltage is greater than 25.5V before turning the batteries on.",
+          "purpose": "Batteries must have enough charge to power essential DC buses and start the APU.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Electrical",
+            "hint": "Top-left overhead electrical panel / ECAM ELEC when powered."
+          },
+          "expectedResult": [
+            "Battery voltage above 25.5V"
+          ],
+          "verification": { "mode": "manual" },
+          "notes": [
+            "If voltage is low, use external power first when AVAIL."
+          ],
+          "estimatedSeconds": 15
+        },
+        {
+          "id": "bat_1_on",
+          "order": 3,
+          "title": "BAT 1 → ON",
+          "instruction": "Push the BAT 1 pushbutton to ON.",
+          "purpose": "Provides DC electrical power from battery 1.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Electrical",
+            "hint": "Top-left of the overhead electrical panel."
+          },
+          "expectedResult": [
+            "BAT 1 illuminated / engaged"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 10
+        },
+        {
+          "id": "bat_2_on",
+          "order": 4,
+          "title": "BAT 2 → ON",
+          "instruction": "Push the BAT 2 pushbutton to ON.",
+          "purpose": "Provides DC electrical power from battery 2; together the batteries give basic DC power for APU start.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Electrical",
+            "hint": "Next to BAT 1 on the overhead electrical panel."
+          },
+          "expectedResult": [
+            "Basic DC power available",
+            "Some overhead indications live"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 10
+        },
+        {
+          "id": "external_power",
+          "order": 5,
+          "title": "External power",
+          "instruction": "When the EXT PWR pushbutton shows green AVAIL, push it to connect external AC power.",
+          "purpose": "Powers the flight-deck screens from ground power without running the APU yet.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Electrical",
+            "hint": "EXT PWR pushbutton on the electrical panel."
+          },
+          "expectedResult": [
+            "EXT PWR connected",
+            "Primary displays powered"
+          ],
+          "condition": "Only if EXT PWR shows green AVAIL.",
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 15
+        }
+      ]
+    },
+    {
+      "id": "apu",
+      "title": "Start APU",
+      "order": 2,
+      "steps": [
+        {
+          "id": "apu_fire_test",
+          "order": 1,
+          "title": "APU fire test",
+          "instruction": "Push and hold the APU fire TEST pushbutton on the upper overhead, then release.",
+          "purpose": "Confirms APU fire detection and extinguishing indications work before APU start.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Fire",
+            "hint": "Upper part of the overhead panel."
+          },
+          "expectedResult": [
+            "APU fire button illuminates",
+            "Extinguisher button illuminates",
+            "Red ECAM master warning / APU FIRE action while held"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 20
+        },
+        {
+          "id": "apu_master_on",
+          "order": 2,
+          "title": "APU MASTER → ON",
+          "instruction": "Push the APU MASTER SW pushbutton ON.",
+          "purpose": "Powers APU computers and begins the APU self-test / inlet door sequence.",
+          "location": {
+            "panel": "Overhead",
+            "section": "APU",
+            "hint": "APU panel on the overhead."
+          },
+          "expectedResult": [
+            "APU MASTER on",
+            "Self-test / inlet door sequence begins"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 10
+        },
+        {
+          "id": "apu_wait_self_test",
+          "order": 3,
+          "title": "Wait for APU ready to start",
+          "instruction": "Wait a few seconds for the APU self-test to finish and the inlet door to open. Monitor the APU page on the lower ECAM.",
+          "purpose": "Starting too early fails; the inlet must be open before START.",
+          "location": {
+            "panel": "ECAM",
+            "section": "APU page",
+            "hint": "Lower ECAM — select the APU page if needed."
+          },
+          "expectedResult": [
+            "APU inlet door open on ECAM APU page"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 20
+        },
+        {
+          "id": "apu_start",
+          "order": 4,
+          "title": "APU START",
+          "instruction": "Push the APU START pushbutton.",
+          "purpose": "Spools the APU so it can supply electrical power and bleed air on the ground.",
+          "location": {
+            "panel": "Overhead",
+            "section": "APU",
+            "hint": "APU START next to APU MASTER."
+          },
+          "expectedResult": [
+            "APU START shows green AVAIL",
+            "Upper ECAM shows APU AVAIL memo"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 45
+        },
+        {
+          "id": "apu_bleed_on",
+          "order": 5,
+          "title": "APU BLEED → ON",
+          "instruction": "Turn on APU BLEED once the APU shows AVAIL.",
+          "purpose": "Provides bleed air for packs and for engine start.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Air conditioning / Bleed",
+            "hint": "APU BLEED pushbutton on the air panel."
+          },
+          "expectedResult": [
+            "APU BLEED on"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 10
+        },
+        {
+          "id": "packs_on",
+          "order": 6,
+          "title": "PACK 1 & PACK 2 → ON",
+          "instruction": "Confirm PACK 1 and PACK 2 are turned on.",
+          "purpose": "Air conditioning packs cool and pressurize the cabin using APU bleed.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Air conditioning",
+            "hint": "PACK 1 and PACK 2 pushbuttons."
+          },
+          "expectedResult": [
+            "Both packs on"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 10
+        },
+        {
+          "id": "fuel_pumps_on",
+          "order": 7,
+          "title": "Fuel pumps → ON",
+          "instruction": "Turn on all fuel pumps: L TK PUMP 1 and 2, CTR TK 1 and 2, R TK PUMP 1 and 2.",
+          "purpose": "Delivers fuel to the engines and APU for start and operation.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Fuel",
+            "hint": "Fuel pump row across the overhead fuel panel."
+          },
+          "expectedResult": [
+            "All tank pumps on"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 25
+        },
+        {
+          "id": "overhead_no_white",
+          "order": 8,
+          "title": "Overhead lights check",
+          "instruction": "Check that no unexpected white lights remain on the overhead panel.",
+          "purpose": "White lights usually mean a system is not in the normal configuration.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Full scan",
+            "hint": "Scan the entire overhead for white pushbutton lights."
+          },
+          "expectedResult": [
+            "No unexpected white lights"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 20
+        }
+      ]
+    },
+    {
+      "id": "adirs_and_signs",
+      "title": "ADIRS and Signs",
+      "order": 3,
+      "steps": [
+        {
+          "id": "adirs_nav",
+          "order": 1,
+          "title": "ADIRS → NAV",
+          "instruction": "Set all three ADIRS switches to the NAV position.",
+          "purpose": "Starts IRS alignment so navigation and flight displays have valid attitude and position.",
+          "location": {
+            "panel": "Overhead",
+            "section": "ADIRS",
+            "hint": "Three ADIRS rotary switches on the overhead."
+          },
+          "expectedResult": [
+            "IR IN ALIGN on ECAM",
+            "Alignment completes in about one minute in Aerofly"
+          ],
+          "notes": [
+            "Real-world alignment can take 10+ minutes; Aerofly speeds this to about one minute."
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 20
+        },
+        {
+          "id": "nav_logo_1",
+          "order": 2,
+          "title": "NAV & LOGO → 1",
+          "instruction": "Place the NAV & LOGO light switch to position 1.",
+          "purpose": "Turns on the first set of navigation and logo lights for ground operations.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Exterior lights",
+            "hint": "NAV & LOGO rotary on the lights panel."
+          },
+          "expectedResult": [
+            "NAV & LOGO set to 1"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 10
+        },
+        {
+          "id": "emer_exit_arm",
+          "order": 3,
+          "title": "EMER EXIT LT → ARM",
+          "instruction": "Set EMER EXIT LT to the center ARM position.",
+          "purpose": "Arms passenger emergency exit lighting for the flight.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Signs / emergency lights",
+            "hint": "EMER EXIT LT switch — center detent is ARM."
+          },
+          "expectedResult": [
+            "EMER EXIT LT in ARM"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 10
+        },
+        {
+          "id": "seatbelts_no_smoking",
+          "order": 4,
+          "title": "SEAT BELTS & NO SMOKING → AUTO",
+          "instruction": "Set SEAT BELTS and NO SMOKING switches to AUTO.",
+          "purpose": "Automates cabin signs; in Aerofly the no-smoking switch also signals PED use.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Signs",
+            "hint": "Seat belts and no smoking switches near the emergency exit light switch."
+          },
+          "expectedResult": [
+            "Both switches in AUTO"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 10
+        }
+      ]
+    },
+    {
+      "id": "additional_checks",
+      "title": "Additional Checks",
+      "order": 4,
+      "optional": true,
+      "steps": [
+        {
+          "id": "eng_fire_test",
+          "order": 1,
+          "title": "Engine fire tests",
+          "instruction": "Press and hold ENG 1 fire TEST, then repeat for ENG 2. Release after each test.",
+          "purpose": "Confirms engine fire warning and extinguisher indications.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Fire",
+            "hint": "Upper overhead ENG 1 / ENG 2 fire TEST buttons."
+          },
+          "expectedResult": [
+            "Fire button red",
+            "Extinguisher buttons illuminated",
+            "Master warning and ECAM FIRE messages while held"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 30
+        },
+        {
+          "id": "controls_park_brake",
+          "order": 2,
+          "title": "Flaps, spoilers, parking brake",
+          "instruction": "Confirm flap lever at the indicated position, speed brake retracted, parking brake ON, and brake accumulator pressure sufficient.",
+          "purpose": "Aircraft is configured and held for engine start.",
+          "location": {
+            "panel": "Pedestal",
+            "section": "Flaps, spoilers, parking brake",
+            "hint": "Center pedestal levers and parking brake handle; check brake pressure gauge."
+          },
+          "expectedResult": [
+            "Flaps as indicated",
+            "Speed brake retracted",
+            "Parking brake on with adequate accumulator pressure"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 25
+        },
+        {
+          "id": "ecam_quantities",
+          "order": 3,
+          "title": "ECAM system quantities",
+          "instruction": "On ECAM, check engine oil, hydraulic oil, oxygen pressure, and STATUS. Press RCL to show previous cautions if needed.",
+          "purpose": "Catch low fluid or oxygen before departure.",
+          "location": {
+            "panel": "ECAM",
+            "section": "ENG / HYD / DOOR / STATUS",
+            "hint": "Use ECAM page buttons on the center panel."
+          },
+          "expectedResult": [
+            "Oil, hydraulic, and oxygen quantities acceptable",
+            "STATUS reviewed"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 40
+        }
+      ]
+    },
+    {
+      "id": "before_start",
+      "title": "Before Start",
+      "order": 5,
+      "steps": [
+        {
+          "id": "mcdu_init_b",
+          "order": 1,
+          "title": "MCDU INIT B masses",
+          "instruction": "On the MCDU INIT B page, enter ZFW, ZFWCG, and BLOCK fuel.",
+          "purpose": "Gives the FMGC correct weight data for performance and predictions.",
+          "location": {
+            "panel": "MCDU",
+            "section": "INIT B",
+            "hint": "Captain or FO MCDU — INIT page, then INIT B."
+          },
+          "expectedResult": [
+            "ZFW, ZFWCG, and BLOCK entered"
+          ],
+          "notes": [
+            "A full MCDU preflight is covered in Aerofly’s A320 MCDU tutorial; this step is the minimum for startup."
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 60
+        },
+        {
+          "id": "mcdu_takeoff_perf",
+          "order": 2,
+          "title": "MCDU takeoff performance",
+          "instruction": "On the takeoff performance page, enter V1, VR, V2, and takeoff flaps.",
+          "purpose": "Sets takeoff speeds and configuration the aircraft will use on the roll.",
+          "location": {
+            "panel": "MCDU",
+            "section": "PERF TAKE OFF",
+            "hint": "MCDU PERF page for takeoff."
+          },
+          "expectedResult": [
+            "V-speeds and takeoff flaps entered"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 45
+        },
+        {
+          "id": "beacon_on",
+          "order": 3,
+          "title": "BEACON → ON",
+          "instruction": "Set the BEACON light switch to ON.",
+          "purpose": "Signals that engines may be started; required before engine start.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Exterior lights",
+            "hint": "BEACON switch on the lights panel."
+          },
+          "expectedResult": [
+            "Beacon on"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 10
+        },
+        {
+          "id": "ecam_default_page",
+          "order": 4,
+          "title": "Default ECAM page",
+          "instruction": "Return to the default ECAM page (press the selected page button again or CLR if highlighted green).",
+          "purpose": "Clears manual page selections so engine-start pages can appear automatically.",
+          "location": {
+            "panel": "ECAM control panel",
+            "section": "Page buttons / CLR",
+            "hint": "Center pedestal ECAM control panel."
+          },
+          "expectedResult": [
+            "Default ECAM page displayed"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 10
+        },
+        {
+          "id": "before_start_confirm",
+          "order": 5,
+          "title": "Pumps, APU, bleed confirm",
+          "instruction": "Confirm all fuel pumps are on, APU is running, and APU BLEED is on.",
+          "purpose": "Engine start needs fuel and APU bleed air.",
+          "location": {
+            "panel": "Overhead / ECAM",
+            "section": "Fuel and APU",
+            "hint": "Quick overhead and ECAM memo scan."
+          },
+          "expectedResult": [
+            "Fuel pumps on",
+            "APU AVAIL",
+            "APU BLEED on"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 15
+        },
+        {
+          "id": "doors_closed",
+          "order": 6,
+          "title": "Doors closed",
+          "instruction": "Open the ECAM DOORS page. Click any doors still open; wait until labels go from amber to white (closed / slide armed).",
+          "purpose": "Aircraft must be closed and slides armed before taxi and takeoff.",
+          "location": {
+            "panel": "ECAM",
+            "section": "DOORS page",
+            "hint": "ECAM DOORS page — click open door labels in Aerofly."
+          },
+          "expectedResult": [
+            "All doors white / closed"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 30
+        },
+        {
+          "id": "flight_directors_on",
+          "order": 7,
+          "title": "Flight directors → ON",
+          "instruction": "Push F/D on the captain and first officer sides until each shows a green highlight.",
+          "purpose": "Enables flight director guidance on both PFDs for departure.",
+          "location": {
+            "panel": "Glareshield / FCU",
+            "section": "F/D buttons",
+            "hint": "F/D buttons left and right of the FCU."
+          },
+          "expectedResult": [
+            "Both F/D buttons green",
+            "FMA shows 1 FD 2"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 15
+        },
+        {
+          "id": "fcu_altitude",
+          "order": 8,
+          "title": "Set FCU altitude",
+          "instruction": "Rotate the FCU altitude selector to your initial climb / cruise altitude (tutorial example: 35000 ft).",
+          "purpose": "Arms the altitude target the autopilot will capture after takeoff.",
+          "location": {
+            "panel": "FCU",
+            "section": "Altitude knob",
+            "hint": "Center glareshield FCU altitude selector."
+          },
+          "expectedResult": [
+            "Selected altitude set",
+            "FCU shows managed speed/heading dashes when pushed as needed"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 20
+        }
+      ]
+    },
+    {
+      "id": "engine_start",
+      "title": "Engine Start",
+      "order": 6,
+      "steps": [
+        {
+          "id": "eng_mode_ign_start",
+          "order": 1,
+          "title": "ENG MODE → IGN/START",
+          "instruction": "Set the engine mode selector to IGN/START.",
+          "purpose": "Arms ignition and start valves for FADEC automatic engine start.",
+          "location": {
+            "panel": "Pedestal",
+            "section": "Engine mode selector",
+            "hint": "Engine mode rotary behind the thrust levers."
+          },
+          "expectedResult": [
+            "Mode selector in IGN/START"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 10
+        },
+        {
+          "id": "eng2_master_on",
+          "order": 2,
+          "title": "ENG 2 MASTER → ON",
+          "instruction": "Move the ENG 2 master switch from OFF to ON. Start the right engine first.",
+          "purpose": "Commands FADEC to start engine 2 automatically.",
+          "location": {
+            "panel": "Pedestal",
+            "section": "Engine masters",
+            "hint": "ENG 2 master switch on the pedestal."
+          },
+          "expectedResult": [
+            "Lower ECAM shows engine page",
+            "N2/N1 rising, FF and EGT increasing",
+            "Green AVAIL above ENG 2 N1 when started"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 60
+        },
+        {
+          "id": "eng1_master_on",
+          "order": 3,
+          "title": "ENG 1 MASTER → ON",
+          "instruction": "When ENG 2 shows AVAIL, move the ENG 1 master switch from OFF to ON.",
+          "purpose": "Starts the left engine the same way.",
+          "location": {
+            "panel": "Pedestal",
+            "section": "Engine masters",
+            "hint": "ENG 1 master switch on the pedestal."
+          },
+          "expectedResult": [
+            "Green AVAIL above ENG 1 N1"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 60
+        },
+        {
+          "id": "eng_mode_normal",
+          "order": 4,
+          "title": "ENG MODE → NORMAL",
+          "instruction": "When both engines show AVAIL, set the engine mode selector back to NORMAL.",
+          "purpose": "Returns ignition/start logic to normal flight operation.",
+          "location": {
+            "panel": "Pedestal",
+            "section": "Engine mode selector",
+            "hint": "Same rotary used for IGN/START."
+          },
+          "expectedResult": [
+            "Mode selector NORMAL",
+            "Both engines AVAIL"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 10
+        }
+      ]
+    },
+    {
+      "id": "after_start",
+      "title": "After Start",
+      "order": 7,
+      "steps": [
+        {
+          "id": "arm_spoilers",
+          "order": 1,
+          "title": "Arm ground spoilers",
+          "instruction": "Pull the speed brake lever forward until the white stripe appears (or tap the lever briefly).",
+          "purpose": "Arms ground spoilers for rejected takeoff and landing.",
+          "location": {
+            "panel": "Pedestal",
+            "section": "Speed brake",
+            "hint": "Speed brake lever on the pedestal."
+          },
+          "expectedResult": [
+            "Spoilers armed (white stripe)"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 10
+        },
+        {
+          "id": "flaps_takeoff",
+          "order": 2,
+          "title": "Flaps → takeoff",
+          "instruction": "Set flaps to the takeoff position (tutorial example: flaps 1). ECAM should show 1+F.",
+          "purpose": "Configures the wing for takeoff.",
+          "location": {
+            "panel": "Pedestal",
+            "section": "Flap lever",
+            "hint": "Flap lever on the right side of the pedestal."
+          },
+          "expectedResult": [
+            "ECAM shows 1+F (or your planned takeoff flap)"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 15
+        },
+        {
+          "id": "rudder_pitch_trim",
+          "order": 3,
+          "title": "Rudder & pitch trim",
+          "instruction": "Center rudder trim with the reset button. Set pitch trim to the takeoff value (tutorial example: UP 0.0).",
+          "purpose": "Neutralizes trim for a stable takeoff rotation.",
+          "location": {
+            "panel": "Pedestal",
+            "section": "Trim",
+            "hint": "Rudder trim switch/reset and pitch trim wheel/indicator."
+          },
+          "expectedResult": [
+            "Rudder trim centered",
+            "Pitch trim at takeoff setting"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 20
+        },
+        {
+          "id": "pws_tcas",
+          "order": 4,
+          "title": "PWS and transponder",
+          "instruction": "Turn on predictive wind shear (PWS) on the weather radar panel. Set the transponder to TA/RA.",
+          "purpose": "Enables wind-shear alerting and TCAS for the flight.",
+          "location": {
+            "panel": "Pedestal / glareshield",
+            "section": "Weather radar and ATC/TCAS",
+            "hint": "Weather radar panel for PWS; transponder panel for TA/RA."
+          },
+          "expectedResult": [
+            "PWS on",
+            "Transponder TA/RA"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 20
+        },
+        {
+          "id": "apu_bleed_off",
+          "order": 5,
+          "title": "APU BLEED → OFF",
+          "instruction": "Push APU BLEED off now that engines can supply bleed air.",
+          "purpose": "Transfers bleed source from APU to the engines.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Bleed",
+            "hint": "APU BLEED pushbutton."
+          },
+          "expectedResult": [
+            "APU BLEED off"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 10
+        },
+        {
+          "id": "apu_master_off",
+          "order": 6,
+          "title": "APU MASTER → OFF",
+          "instruction": "Push APU MASTER off. Allow the APU cooldown, then it will spool down.",
+          "purpose": "Shuts down the APU once engines are providing power and bleed.",
+          "location": {
+            "panel": "Overhead",
+            "section": "APU",
+            "hint": "APU MASTER SW."
+          },
+          "expectedResult": [
+            "APU begins shutdown after cooldown"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 15
+        },
+        {
+          "id": "ext_pwr_off",
+          "order": 7,
+          "title": "External power off",
+          "instruction": "If external power is still connected, turn EXT PWR off.",
+          "purpose": "Disconnects ground power now that engine generators are online.",
+          "location": {
+            "panel": "Overhead",
+            "section": "Electrical",
+            "hint": "EXT PWR pushbutton."
+          },
+          "condition": "Only if external power is still in use.",
+          "expectedResult": [
+            "EXT PWR disconnected"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 10
+        },
+        {
+          "id": "ecam_rcl_status",
+          "order": 8,
+          "title": "ECAM RCL / STATUS",
+          "instruction": "Push ECAM RCL and review the STATUS page.",
+          "purpose": "Surfaces any remaining cautions before taxi.",
+          "location": {
+            "panel": "ECAM control panel",
+            "section": "RCL / STATUS",
+            "hint": "ECAM RCL button, then STATUS page."
+          },
+          "expectedResult": [
+            "STATUS reviewed; no unexpected warnings"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 20
+        }
+      ]
+    },
+    {
+      "id": "flight_controls",
+      "title": "Flight Control Check",
+      "order": 8,
+      "steps": [
+        {
+          "id": "sidestick_pitch",
+          "order": 1,
+          "title": "Sidestick full forward / aft",
+          "instruction": "Push the sidestick fully forward, then fully aft. Watch the PFD crosshair and ECAM F/CTL page.",
+          "purpose": "Confirms elevator response before taxi.",
+          "location": {
+            "panel": "Sidestick / ECAM",
+            "section": "Flight controls",
+            "hint": "Deflecting controls auto-opens the F/CTL ECAM page."
+          },
+          "expectedResult": [
+            "Elevators full travel on ECAM",
+            "PFD crosshair moves full down / up"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 20
+        },
+        {
+          "id": "sidestick_roll",
+          "order": 2,
+          "title": "Sidestick full left / right",
+          "instruction": "Move the sidestick full left, then full right.",
+          "purpose": "Confirms aileron and roll spoiler response.",
+          "location": {
+            "panel": "Sidestick / ECAM",
+            "section": "Flight controls",
+            "hint": "Watch ailerons and green spoiler arrows on F/CTL."
+          },
+          "expectedResult": [
+            "Ailerons and roll spoilers deflect correctly"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 20
+        },
+        {
+          "id": "rudder_check",
+          "order": 3,
+          "title": "Rudder full left / right",
+          "instruction": "Apply full left then full right rudder. If taxiing, hold the tiller pedal disconnect to disable nose-wheel steering during the test.",
+          "purpose": "Confirms rudder authority before departure.",
+          "location": {
+            "panel": "Rudder pedals / ECAM",
+            "section": "Flight controls",
+            "hint": "Watch rudder deflection on the F/CTL page."
+          },
+          "expectedResult": [
+            "Rudder full travel on ECAM F/CTL"
+          ],
+          "verification": { "mode": "manual" },
+          "estimatedSeconds": 20
+        }
+      ]
+    }
+  ]
+}

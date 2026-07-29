@@ -20,6 +20,7 @@ struct ContentView: View {
     let aircraftAssetManager: AircraftAssetManaging
     let aircraftProvider: AircraftProviding
     let airportProvider: AirportProviding
+    let procedureProvider: ProcedureProviding
 
     var body: some View {
         NavigationSplitView {
@@ -66,6 +67,8 @@ struct ContentView: View {
                 flightAnalysisEngine: flightAnalysisEngine,
                 aircraftAssetManager: aircraftAssetManager
             )
+        case .procedures:
+            ProceduresView(procedureProvider: procedureProvider)
         case .settings:
             SettingsView(
                 telemetryService: telemetryService,
@@ -99,6 +102,7 @@ struct ContentView: View {
         ),
         aircraftAssetManager: AircraftAssetManager(),
         aircraftProvider: AircraftService(),
-        airportProvider: AirportService()
+        airportProvider: AirportService(),
+        procedureProvider: ProcedureService()
     )
 }

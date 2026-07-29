@@ -35,17 +35,20 @@ final class AppServices: ObservableObject {
     let flightHistoryEngine: FlightHistoryEngine
     let mapTrailService: MapTrailService
     let aircraftAssetManager: AircraftAssetManaging
+    let procedureService: ProcedureService
 
     init() {
         let telemetryService = TelemetryService()
         let aeroflySessionService = AeroflySessionService()
         let aircraftService = AircraftService()
         let airportService = AirportService()
+        let procedureService = ProcedureService()
 
         self.telemetryService = telemetryService
         self.aeroflySessionService = aeroflySessionService
         self.aircraftService = aircraftService
         self.airportService = airportService
+        self.procedureService = procedureService
         aircraftAssetManager = AircraftAssetManager()
 
         let flightContextEngine = FlightContextEngine(

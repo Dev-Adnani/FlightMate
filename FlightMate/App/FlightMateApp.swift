@@ -63,7 +63,8 @@ struct FlightMateApp: App {
                     mapTrailService: services.mapTrailService,
                     aircraftAssetManager: services.aircraftAssetManager,
                     aircraftProvider: services.aircraftService,
-                    airportProvider: services.airportService
+                    airportProvider: services.airportService,
+                    procedureProvider: services.procedureService
                 )
                 .task {
                     do {

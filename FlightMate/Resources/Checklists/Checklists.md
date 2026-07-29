@@ -1,3 +1,7 @@
 # Checklists
 
-Bundled checklist definitions used by the Checklist feature will be stored here.
+Checklist / guided procedure content lives under
+[`Resources/Knowledge/`](../Knowledge/).
+
+See [`Knowledge/SPEC.md`](../Knowledge/SPEC.md) for the FlightMate
+Procedure Specification v1.

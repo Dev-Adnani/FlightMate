@@ -17,7 +17,7 @@ Help users learn aviation and improve their flight simulation experience.
 - Live telemetry dashboard
 - AI instructor
 - Flight phase detection
-- Aircraft-specific checklists
+- Aircraft-specific guided procedures (checklists)
 - Airport information
 - Flight history
 
@@ -385,18 +385,35 @@ Telemetry → Session → Domain Resolution → Flight Analysis → Flight Event
                                                                                 built ✅
 ```
 
-- **Prompt Context Builder** (next): combines `FlightAnalysis`,
-  `FlightEvent`(s), and `ResolvedSession` into one compact, structured AI
-  context object (aircraft/livery/phase/departure/destination/nearest
-  airport/distance remaining/recent events) — so the eventual AI
-  instructor consumes a clean aviation summary and never sees raw
-  telemetry or has to reconstruct flight state itself.
+- **Prompt Context Builder** (paused relative to procedures work): combines
+  `FlightAnalysis`, `FlightEvent`(s), and `ResolvedSession` into one
+  compact, structured AI context object — so the eventual AI instructor
+  consumes a clean aviation summary and never sees raw telemetry.
+
+### Guided Procedures / Aircraft Procedure Platform (Phase 1 ✅)
+
+Data-driven **guided procedures** teach Aerofly aircraft step by step
+(Duolingo-style: one action, where, why — not a PDF checklist).
+
+- **Spec:** `Resources/Knowledge/SPEC.md` (Procedure Specification v1)
+- **Content:** A320neo Cold & Dark curated from the official Aerofly
+  A320 tutorial (`a320_neo.cold_and_dark.json`). Open-source MSFS/airline
+  checklists are reference-only and never shipped.
+- **Core:** `Core/Procedures/` — `Codable` models, `KnowledgeDataLoading`,
+  `ProcedureService` / `ProcedureProviding` (constructor-injected)
+- **UI:** `Features/Procedures/` — sidebar **Procedures** destination;
+  aircraft → procedure → Step N of M → completion
+- **Fidelity tiers** in schema: `aerofly_verified` / `family_derived` /
+  `draft`; optional `inheritsProceduresFrom` for later Airbus family reuse
+- **Not in Phase 1:** telemetry auto-check, panel highlight images, taxi→
+  shutdown phases, multi-aircraft content, progress persistence
 
 ## Coding Rules
 
 - Never use UIKit.
 - Never use singletons.
 - Never hardcode airport data.
+- Never hardcode procedure / checklist content in Swift — load from Knowledge JSON.
 - Keep files under 300 lines.
 - Every service must be testable.
 - Prefer protocol-oriented design.

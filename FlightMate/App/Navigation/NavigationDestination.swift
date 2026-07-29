@@ -22,6 +22,7 @@ enum NavigationDestination: String, CaseIterable, Identifiable, Hashable {
     case flightHistory
     case airports
     case aircraft
+    case procedures
     case settings
 
     var id: String { rawValue }
@@ -34,6 +35,7 @@ enum NavigationDestination: String, CaseIterable, Identifiable, Hashable {
         case .flightHistory: return "Flight History"
         case .airports: return "Airports"
         case .aircraft: return "Aircraft"
+        case .procedures: return "Procedures"
         case .settings: return "Settings"
         }
     }
@@ -46,6 +48,7 @@ enum NavigationDestination: String, CaseIterable, Identifiable, Hashable {
         case .flightHistory: return "clock.arrow.trianglehead.counterclockwise.rotate.90"
         case .airports: return "building.2"
         case .aircraft: return "airplane"
+        case .procedures: return "checklist"
         case .settings: return "gearshape"
         }
     }

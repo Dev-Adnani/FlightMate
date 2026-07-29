@@ -1,0 +1,11 @@
+{
+  "id": "a320_neo",
+  "name": "Airbus A320neo",
+  "manufacturer": "Airbus",
+  "family": "airbus_fb",
+  "category": "airliner",
+  "fidelity": "aerofly_verified",
+  "supportedProcedures": [
+    "cold_and_dark"
+  ]
+}
