@@ -151,6 +151,17 @@ final class FakeAeroflyVersionReading: AeroflyVersionReading {
     func readVersion(in directory: URL) -> String? { versionToReturn }
 }
 
+/// A configurable `AeroflyLoadedAircraftReading` fake.
+final class FakeAeroflyLoadedAircraftReading: AeroflyLoadedAircraftReading {
+    var aircraftCodeToReturn: String?
+
+    init(aircraftCodeToReturn: String? = nil) {
+        self.aircraftCodeToReturn = aircraftCodeToReturn
+    }
+
+    func readLoadedAircraft(in directory: URL) -> String? { aircraftCodeToReturn }
+}
+
 /// A mutable box so tests can change what `AeroflySessionService`'s
 /// injected `readFileContents` closure returns between reparses, without
 /// writing to real disk.

@@ -13,6 +13,9 @@ import Foundation
 /// Everything `AircraftCard` needs to render, and nothing else.
 struct AircraftCardModel: Equatable {
     let aircraftName: String
+    /// Raw Aerofly code (e.g. `a320_neo`) so a stale/wrong identity is
+    /// obvious next to the friendly name. `nil` when no selection.
+    let aeroflyCode: String?
     let categoryDisplayName: String?
     let liveryName: String?
     let isResolved: Bool
@@ -26,6 +29,7 @@ struct AircraftCardModel: Equatable {
     /// simulator.
     static let noSelection = AircraftCardModel(
         aircraftName: "No Aircraft Loaded",
+        aeroflyCode: nil,
         categoryDisplayName: nil,
         liveryName: nil,
         isResolved: false,
@@ -42,6 +46,7 @@ struct AircraftCardModel: Equatable {
 
         return AircraftCardModel(
             aircraftName: resolved.aircraft?.nameFull ?? resolved.aircraftCode,
+            aeroflyCode: resolved.aircraftCode,
             categoryDisplayName: resolved.category?.displayName,
             liveryName: resolved.livery?.name ?? (resolved.liveryCode.isEmpty ? nil : resolved.liveryCode),
             isResolved: resolved.status == .resolved,

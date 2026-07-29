@@ -54,10 +54,14 @@ sources, plus a bundled reference database that only ever enriches:
    Position, altitude, heading, ground speed, pitch, roll, connection
    status. Highest precedence. Once a field has been observed over UDP, it
    is never overwritten by anything else.
-2. **Aerofly session** (`AeroflySessionService`, reading `main.mcf`) — low
-   frequency, event-driven (filesystem watch, no polling). Aircraft,
-   livery, departure, destination, on-ground flag, weather, simulated
-   time, initial position (pre-UDP only), Aerofly version. Lower
+2. **Aerofly session** (`AeroflySessionService`, reading `main.mcf` +
+   `tm.log`) — low frequency, event-driven (filesystem watch on both
+   files, no polling). Aircraft, livery, departure, destination,
+   on-ground flag, weather, simulated time, initial position (pre-UDP
+   only), Aerofly version. Aircraft identity prefers the last
+   `done loading model <code>` line in `tm.log` when it disagrees with
+   `main.mcf` (sim can load a new plane before rewriting `main.mcf` —
+   which otherwise leaves a stale default like `c172` / Cessna). Lower
    precedence than UDP.
 3. **Bundled reference database** (`AirportService`/`AircraftService`) —
    lowest precedence, enrichment only (raw codes → full domain models).

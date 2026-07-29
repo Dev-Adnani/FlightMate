@@ -30,6 +30,12 @@ struct AircraftCard: DashboardCard {
                         .font(.title3.weight(.semibold))
                         .lineLimit(2)
 
+                    if let code = model.aeroflyCode {
+                        Text(code)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+
                     if let category = model.categoryDisplayName {
                         Text(category)
                             .font(.subheadline)
@@ -50,7 +56,10 @@ struct AircraftCard: DashboardCard {
                 }
             }
         }
-        .accessibilityLabel("Aircraft: \(model.aircraftName)")
+        .accessibilityLabel(
+            model.aeroflyCode.map { "Aircraft: \(model.aircraftName) (\($0))" }
+                ?? "Aircraft: \(model.aircraftName)"
+        )
     }
 }
 

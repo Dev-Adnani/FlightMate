@@ -16,13 +16,21 @@ struct AeroflySessionServiceTests {
         directory: URL? = URL(fileURLWithPath: "/fake/Aerofly FS 4", isDirectory: true),
         contents: MutableFileContentsBox = MutableFileContentsBox(),
         version: String? = "4.08.04.01",
-        watcher: FakeAeroflyFileWatching = FakeAeroflyFileWatching()
+        liveAircraft: String? = nil,
+        watcher: FakeAeroflyFileWatching = FakeAeroflyFileWatching(),
+        logWatcher: FakeAeroflyFileWatching = FakeAeroflyFileWatching(),
+        periodicRefreshInterval: Duration = .seconds(60),
+        postFailureRefreshDelay: Duration = .milliseconds(500)
     ) -> AeroflySessionService {
         AeroflySessionService(
             directoryLocator: FakeAeroflyUserDirectoryLocator(directoryToReturn: directory),
             fileWatcher: watcher,
+            logFileWatcher: logWatcher,
             versionReader: FakeAeroflyVersionReading(versionToReturn: version),
-            readFileContents: { _ in contents.contents }
+            loadedAircraftReader: FakeAeroflyLoadedAircraftReading(aircraftCodeToReturn: liveAircraft),
+            readFileContents: { _ in contents.contents },
+            periodicRefreshInterval: periodicRefreshInterval,
+            postFailureRefreshDelay: postFailureRefreshDelay
         )
     }
 
@@ -60,14 +68,42 @@ struct AeroflySessionServiceTests {
         #expect(watcher.watchedURL != nil)
     }
 
-    @Test func watchesTheMainMcfURLInsideTheResolvedDirectory() {
+    @Test func watchesTheMainMcfAndTmLogURLsInsideTheResolvedDirectory() {
         let directory = URL(fileURLWithPath: "/fake/Aerofly FS 4", isDirectory: true)
         let watcher = FakeAeroflyFileWatching()
-        let service = makeService(directory: directory, watcher: watcher)
+        let logWatcher = FakeAeroflyFileWatching()
+        let service = makeService(directory: directory, watcher: watcher, logWatcher: logWatcher)
 
         service.start()
 
         #expect(watcher.watchedURL == directory.appendingPathComponent("main.mcf"))
+        #expect(logWatcher.watchedURL == directory.appendingPathComponent("tm.log"))
+    }
+
+    @Test func prefersLiveAircraftFromTmLogWhenItDisagreesWithMainMcf() {
+        let contents = MutableFileContentsBox(AeroflySessionFixtures.mainMcf(aircraft: "c172"))
+        let service = makeService(contents: contents, liveAircraft: "a320_neo")
+
+        service.start()
+
+        #expect(service.state == .loaded)
+        #expect(service.session?.aircraft?.aeroflyCode == "a320_neo")
+        #expect(service.session?.aircraft?.liveryCode == "")
+        #expect(service.lastValidationReport?.entries.contains {
+            $0.field == "aircraft.live" && $0.status == .found
+        } == true)
+    }
+
+    @Test func keepsMainMcfAircraftWhenLiveLogAgrees() {
+        let contents = MutableFileContentsBox(
+            AeroflySessionFixtures.mainMcf(aircraft: "a320_neo", livery: "lufthansa")
+        )
+        let service = makeService(contents: contents, liveAircraft: "a320_neo")
+
+        service.start()
+
+        #expect(service.session?.aircraft?.aeroflyCode == "a320_neo")
+        #expect(service.session?.aircraft?.liveryCode == "lufthansa")
     }
 
     @Test func debouncedReparsePicksUpNewContentsAfterFileChangeEvent() async throws {
@@ -136,17 +172,64 @@ struct AeroflySessionServiceTests {
         #expect(service.session == sessionBefore)
     }
 
-    @Test func stopHaltsWatching() {
+    @Test func stopHaltsWatchingBothFiles() {
         let watcher = FakeAeroflyFileWatching()
-        let service = makeService(watcher: watcher)
+        let logWatcher = FakeAeroflyFileWatching()
+        let service = makeService(watcher: watcher, logWatcher: logWatcher)
         service.start()
         // `start()` itself calls `stop()` first to reset any prior watch,
         // so stopWatching has already been invoked once before this.
         let stopsAfterStart = watcher.stopCallCount
+        let logStopsAfterStart = logWatcher.stopCallCount
 
         service.stop()
 
         #expect(watcher.stopCallCount == stopsAfterStart + 1)
+        #expect(logWatcher.stopCallCount == logStopsAfterStart + 1)
+    }
+
+    @Test func periodicRefreshPicksUpAircraftChangeWithoutFileSystemEvent() async throws {
+        let contents = MutableFileContentsBox(AeroflySessionFixtures.mainMcf(aircraft: "c172"))
+        let service = makeService(
+            contents: contents,
+            periodicRefreshInterval: .milliseconds(80)
+        )
+        service.start()
+        #expect(service.session?.aircraft?.aeroflyCode == "c172")
+
+        contents.contents = AeroflySessionFixtures.mainMcf(aircraft: "a320_neo")
+
+        try await waitUntilAeroflySession { service.session?.aircraft?.aeroflyCode == "a320_neo" }
+        #expect(service.session?.aircraft?.aeroflyCode == "a320_neo")
+        service.stop()
+    }
+
+    @Test func postFailureRefreshRecoversAfterKeepLastWithoutNewFSEvent() async throws {
+        let contents = MutableFileContentsBox(AeroflySessionFixtures.mainMcf(aircraft: "c172"))
+        let watcher = FakeAeroflyFileWatching()
+        let service = makeService(
+            contents: contents,
+            watcher: watcher,
+            // Disable periodic so only post-failure path can recover.
+            periodicRefreshInterval: .seconds(60),
+            postFailureRefreshDelay: .milliseconds(50)
+        )
+        service.start()
+        #expect(service.session?.aircraft?.aeroflyCode == "c172")
+
+        contents.contents = nil
+        watcher.simulateChange()
+        // Wait until keep-last + post-failure delay have had a chance to run.
+        try await Task.sleep(for: .milliseconds(800))
+        #expect(service.session?.aircraft?.aeroflyCode == "c172")
+        #expect(service.state == .loaded)
+
+        contents.contents = AeroflySessionFixtures.mainMcf(aircraft: "a320_neo")
+        try await waitUntilAeroflySession(timeout: .seconds(3)) {
+            service.session?.aircraft?.aeroflyCode == "a320_neo"
+        }
+        #expect(service.session?.aircraft?.aeroflyCode == "a320_neo")
+        service.stop()
     }
 }
 

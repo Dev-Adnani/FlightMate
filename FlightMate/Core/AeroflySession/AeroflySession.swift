@@ -4,7 +4,8 @@
 //
 //  A typed snapshot of everything FlightMate currently understands about
 //  the simulator's active session, as read from main.mcf (and tm.log for
-//  the version string). Produced by AeroflySessionMapper.
+//  the version string plus live aircraft identity when present). Produced
+//  by AeroflySessionMapper + AeroflySessionAircraftReconciler.
 //
 //  Source-of-truth note: this is a SESSION source, lower precedence than
 //  live UDP telemetry. See FlightContext's doc header for the full

@@ -53,18 +53,45 @@ enum AeroflySessionMapper {
         into session: inout AeroflySession,
         entries: inout [AeroflySessionValidationEntry]
     ) {
-        guard let aircraftNode = sim.firstChild(type: "tmsettings_aircraft") else {
-            entries.append(AeroflySessionValidationEntry(field: "aircraft", status: .missing, detail: "tmsettings_aircraft group not found"))
-            return
-        }
-        guard let name = aircraftNode.firstChild(key: "name")?.value, !name.isEmpty else {
-            entries.append(AeroflySessionValidationEntry(field: "aircraft", status: .unexpected, detail: "missing or empty 'name' leaf"))
+        // Current selection is keyed `aircraft` (`<[tmsettings_aircraft][aircraft][]>`).
+        // Do NOT use `firstChild(type:)` alone — `aircraft_list` also contains
+        // nested `tmsettings_aircraft` elements (recent planes, often including
+        // the default Cessna c172) that must never be treated as the live plane.
+        let aircraftNode =
+            sim.children.first { $0.key == "aircraft" && $0.type == "tmsettings_aircraft" }
+            ?? sim.firstChild(type: "tmsettings_aircraft")
+
+        if let aircraftNode,
+           let name = aircraftNode.firstChild(key: "name")?.value,
+           !name.isEmpty {
+            let liveryCode = aircraftNode.firstChild(key: "paintscheme")?.value ?? ""
+            session.aircraft = AeroflySession.AircraftSelection(aeroflyCode: name, liveryCode: liveryCode)
+            entries.append(AeroflySessionValidationEntry(field: "aircraft", status: .found, detail: "\(name) / \(liveryCode)"))
             return
         }
 
-        let liveryCode = aircraftNode.firstChild(key: "paintscheme")?.value ?? ""
-        session.aircraft = AeroflySession.AircraftSelection(aeroflyCode: name, liveryCode: liveryCode)
-        entries.append(AeroflySessionValidationEntry(field: "aircraft", status: .found, detail: "\(name) / \(liveryCode)"))
+        // Secondary signal inside main.mcf: fuel/payload block mirrors the
+        // selected aircraft code even when the primary group is malformed.
+        if let fuelNode = sim.firstChild(type: "tmsettings_fuel_load")
+            ?? sim.firstChild(key: "fuel_load_setting"),
+           let name = fuelNode.firstChild(key: "aircraft")?.value,
+           !name.isEmpty {
+            session.aircraft = AeroflySession.AircraftSelection(aeroflyCode: name, liveryCode: "")
+            entries.append(AeroflySessionValidationEntry(
+                field: "aircraft",
+                status: .found,
+                detail: "\(name) (from fuel_load_setting)"
+            ))
+            return
+        }
+
+        entries.append(AeroflySessionValidationEntry(
+            field: "aircraft",
+            status: aircraftNode == nil ? .missing : .unexpected,
+            detail: aircraftNode == nil
+                ? "tmsettings_aircraft[aircraft] group not found"
+                : "missing or empty 'name' leaf"
+        ))
     }
 
     // MARK: - Flight setting (position, on_ground, departure)

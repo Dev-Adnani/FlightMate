@@ -19,6 +19,11 @@ final class AircraftViewModel: ObservableObject {
     private let aircraftProvider: AircraftProviding
     private let aircraftAssetManager: AircraftAssetManaging
     private let allAircraft: [Aircraft]
+    /// Sorted-catalog default used when the browser first opens; live
+    /// follow only auto-selects while still on this default (or when the
+    /// live code itself changes).
+    private let initialCatalogSelectionID: String?
+    private var lastFollowedLiveCode: String?
     private var cancellables = Set<AnyCancellable>()
 
     init(
@@ -31,7 +36,9 @@ final class AircraftViewModel: ObservableObject {
         self.allAircraft = aircraftProvider.allAircraft().sorted {
             $0.nameFull.localizedCaseInsensitiveCompare($1.nameFull) == .orderedAscending
         }
-        self.selectedAircraftID = allAircraft.first?.id
+        let initialID = allAircraft.first?.id
+        self.initialCatalogSelectionID = initialID
+        self.selectedAircraftID = initialID
 
         // Async hop so engine replay never assigns during `@StateObject` init
         // / a SwiftUI view update.
@@ -42,10 +49,31 @@ final class AircraftViewModel: ObservableObject {
             .sink { [weak self] code in
                 guard let self else { return }
                 DispatchQueue.main.async {
-                    self.currentAircraftCode = code
+                    self.applyLiveAircraftCode(code)
                 }
             }
             .store(in: &cancellables)
+    }
+
+    /// Updates the Current badge and, when appropriate, the detail selection
+    /// so the browser follows the simulator instead of staying on a
+    /// previously tapped plane (e.g. Cessna).
+    private func applyLiveAircraftCode(_ code: String?) {
+        currentAircraftCode = code
+
+        guard let code,
+              allAircraft.contains(where: { $0.aeroflyCode == code }) else {
+            return
+        }
+
+        let liveChanged = lastFollowedLiveCode != code
+        let stillOnInitialDefault =
+            selectedAircraftID == initialCatalogSelectionID && lastFollowedLiveCode == nil
+
+        if liveChanged || stillOnInitialDefault {
+            selectedAircraftID = code
+            lastFollowedLiveCode = code
+        }
     }
 
     var filteredAircraft: [Aircraft] {

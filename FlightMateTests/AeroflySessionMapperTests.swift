@@ -24,6 +24,49 @@ struct AeroflySessionMapperTests {
         #expect(report.entries.contains { $0.field == "aircraft" && $0.status == .found })
     }
 
+    @Test func prefersCurrentAircraftKeyOverAircraftListCessna() throws {
+        // Regression: aircraft_list often still contains c172 (Aerofly default).
+        // Live selection must come from key `aircraft`, never list elements.
+        let text = """
+        <[file][][]
+            <[tmsettings_sim][][]
+                <[tmsettings_aircraft][aircraft][]
+                    <[string8u][name][a320_neo]>
+                    <[string8u][paintscheme][]>
+                >
+                <[list_tmsettings_aircraft][aircraft_list][]
+                    <[tmsettings_aircraft][element][0]
+                        <[string8u][name][c172]>
+                        <[string8u][paintscheme][classic]>
+                    >
+                >
+            >
+        >
+        """
+        let root = try AeroflyMcfParser.parse(text)
+        let (session, _) = AeroflySessionMapper.map(root, aeroflyVersion: nil)
+        #expect(session.aircraft?.aeroflyCode == "a320_neo")
+    }
+
+    @Test func fallsBackToFuelLoadAircraftWhenPrimaryGroupMissing() throws {
+        let text = """
+        <[file][][]
+            <[tmsettings_sim][][]
+                <[tmsettings_fuel_load][fuel_load_setting][]
+                    <[string8u][aircraft][a320_neo]>
+                    <[float64][fuel_mass][7800]>
+                >
+            >
+        >
+        """
+        let root = try AeroflyMcfParser.parse(text)
+        let (session, report) = AeroflySessionMapper.map(root, aeroflyVersion: nil)
+        #expect(session.aircraft?.aeroflyCode == "a320_neo")
+        #expect(report.entries.contains {
+            $0.field == "aircraft" && ($0.detail?.contains("fuel_load_setting") ?? false)
+        })
+    }
+
     @Test func mapsInitialPositionFromPositionVector() throws {
         let (session, _) = try mappedSession()
         let position = try #require(session.initialPosition)
