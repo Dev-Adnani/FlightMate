@@ -54,10 +54,12 @@ struct MovingMapViewModelTests {
             now: { clockBox.now }
         )
 
-        // Initial `$context` delivery is async (`receive(on: DispatchQueue.main)`).
-        // Wait for that parked-position observation to consume the first
-        // throttle window at `clockBox.now`'s starting instant, then advance
-        // the clock so this test's probe packets start from a clean window.
+        // `aircraftCoordinate` only ever reflects a genuinely live UDP
+        // position (see `MovingMapViewModel.handle(_:FlightContext)`), so
+        // prime the first throttle window with one real packet at
+        // `clockBox.now`'s starting instant, then advance the clock so this
+        // test's probe packets start from a clean window.
+        engines.listener.onPacketReceived?(Data("XGPSAerofly FS 4,0.0,0.0,0.0,0.0,0.0".utf8))
         try await waitUntil { viewModel.aircraftCoordinate != nil }
         clockBox.now = clockBox.now.addingTimeInterval(2)
         engines.listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,11.0,314.1,0.2".utf8))

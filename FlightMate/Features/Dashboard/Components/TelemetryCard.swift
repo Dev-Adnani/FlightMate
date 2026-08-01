@@ -2,13 +2,13 @@
 //  TelemetryCard.swift
 //  FlightMate
 //
-//  Dashboard card: "Is everything healthy?" (live instrument readout).
+//  Dashboard card: live instrument readout.
 //
 
 import SwiftUI
 
 /// Shows altitude, ground speed, heading, vertical speed, and connection
-/// health -- clean, unit-labeled values, never raw debug fields.
+/// health — clean, unit-labeled values, never raw debug fields.
 struct TelemetryCard: DashboardCard {
     let model: TelemetryCardModel
 
@@ -20,42 +20,40 @@ struct TelemetryCard: DashboardCard {
     var body: some View {
         CardContainer(title: cardTitle, systemImage: cardIcon) {
             VStack(alignment: .leading, spacing: Theme.Spacing.contentGap) {
-                LazyVGrid(columns: columns, alignment: .leading, spacing: Theme.Spacing.contentGap) {
-                    metric(label: "Altitude", value: altitudeDisplay)
-                    metric(label: "Ground Speed", value: groundSpeedDisplay)
-                    metric(label: "Heading", value: headingDisplay)
-                    metric(label: "Vertical Speed", value: verticalSpeedDisplay)
+                LazyVGrid(columns: columns, alignment: .leading, spacing: Theme.Spacing.cardGap) {
+                    MetricReadout(
+                        label: "Altitude",
+                        value: altitudeDisplay,
+                        systemImage: "arrow.up.to.line"
+                    )
+                    MetricReadout(
+                        label: "Ground Speed",
+                        value: groundSpeedDisplay,
+                        systemImage: "gauge.with.needle"
+                    )
+                    MetricReadout(
+                        label: "Heading",
+                        value: headingDisplay,
+                        systemImage: "location.north.line"
+                    )
+                    MetricReadout(
+                        label: "Vertical Speed",
+                        value: verticalSpeedDisplay,
+                        systemImage: "arrow.up.arrow.down"
+                    )
                 }
-
-                Divider()
 
                 StatusBadge(level: model.connectionHealthLevel, label: model.connectionHealthLabel)
             }
         }
     }
 
-    private func metric(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.title3.weight(.semibold).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
-    }
-
     private var altitudeDisplay: String {
-        guard let altitude = model.altitudeFeet else { return "—" }
-        return "\(Int(altitude.rounded())) ft"
+        UnitFormatting.altitude(feet: model.altitudeFeet, system: model.unitSystem)
     }
 
     private var groundSpeedDisplay: String {
-        guard let speed = model.groundSpeedKnots else { return "—" }
-        return "\(Int(speed.rounded())) kt"
+        UnitFormatting.speed(knots: model.groundSpeedKnots, system: model.unitSystem)
     }
 
     private var headingDisplay: String {
@@ -64,13 +62,13 @@ struct TelemetryCard: DashboardCard {
     }
 
     private var verticalSpeedDisplay: String {
-        guard let verticalSpeed = model.verticalSpeedFeetPerMinute else { return "—" }
-        return "\(verticalSpeed >= 0 ? "+" : "")\(Int(verticalSpeed.rounded())) fpm"
+        UnitFormatting.verticalSpeed(feetPerMinute: model.verticalSpeedFeetPerMinute, system: model.unitSystem)
     }
 }
 
 #Preview {
     TelemetryCard(model: .empty)
         .padding()
-        .frame(width: 320)
+        .frame(width: 360, height: 240)
+        .background(Theme.dashboardBackground)
 }

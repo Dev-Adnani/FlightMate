@@ -35,6 +35,11 @@ enum FlightEventDetectionService {
         var hasBeenAirborneThisSession = false
         var isTelemetryCurrentlyLost = false
         var lastKnownAircraft: ResolvedAircraft?
+        /// A candidate aircraft-code change awaiting confirmation -- see
+        /// `detectAircraftEvents`. Not a full replacement for fixing the
+        /// upstream `main.mcf`/`tm.log` reconciliation race, only a
+        /// best-effort guard against single-sample flicker.
+        var pendingAircraft: ResolvedAircraft?
     }
 
     /// Compares `previous` to `current` and returns every event that
@@ -61,41 +66,78 @@ enum FlightEventDetectionService {
     // MARK: - Aircraft identity
 
     /// `nil -> known` emits `.aircraftLoaded`; `known -> different known`
-    /// emits `.aircraftChanged` with both aircraft attached as metadata.
-    /// A transient `nil` on `current` (session momentarily has no
-    /// aircraft selection) never clears `lastKnownAircraft` and never
-    /// emits anything -- mirrors `SessionMetricsTracker`'s existing
+    /// emits `.aircraftChanged` with both aircraft attached as metadata,
+    /// but only once the new code has been observed on **two consecutive**
+    /// analyses -- a single-sample flicker (e.g. `main.mcf`/`tm.log`
+    /// briefly disagreeing while Aerofly rewrites the session file mid
+    /// reparse) reverts on the very next observation and is discarded
+    /// without ever emitting or updating `lastKnownAircraft`. A transient
+    /// `nil` on `current` (session momentarily has no aircraft selection)
+    /// never clears `lastKnownAircraft`/`pendingAircraft` and never emits
+    /// anything -- mirrors `SessionMetricsTracker`'s existing
     /// transient-nil tolerance, for the same reason: a `main.mcf`
     /// re-parse shouldn't be able to manufacture a spurious "reload."
     /// Identity is compared on `aircraftCode` alone, not full
     /// `ResolvedAircraft` equality, so an unrelated livery/resolution-
     /// status change never counts as a new aircraft.
+    ///
+    /// A confirmed aircraft change also resets `hasBeenAirborneThisSession`
+    /// -- otherwise a flight that changed aircraft mid-air (without ever
+    /// reaching `.parked` first) would carry the old flight's "has been
+    /// airborne" latch into the new one, and the very next time the new
+    /// aircraft reaches `.parked` (even having never flown) would emit a
+    /// spurious `flightCompleted`.
     private static func detectAircraftEvents(
         current: FlightAnalysis, state: inout DetectionState, emitted: inout [PendingEvent]
     ) {
         guard let currentAircraft = current.resolvedAircraft else { return }
 
-        if let lastKnown = state.lastKnownAircraft {
-            if lastKnown.aircraftCode != currentAircraft.aircraftCode {
-                emitted.append((.aircraftChanged, .aircraftChange(previous: lastKnown, current: currentAircraft)))
-            }
-        } else {
+        guard let lastKnown = state.lastKnownAircraft else {
             emitted.append((.aircraftLoaded, nil))
+            state.lastKnownAircraft = currentAircraft
+            state.pendingAircraft = nil
+            return
         }
-        state.lastKnownAircraft = currentAircraft
+
+        guard lastKnown.aircraftCode != currentAircraft.aircraftCode else {
+            // Confirms staying on the same aircraft; discards any
+            // in-flight candidate from a since-reverted flicker.
+            state.pendingAircraft = nil
+            return
+        }
+
+        if let pending = state.pendingAircraft, pending.aircraftCode == currentAircraft.aircraftCode {
+            emitted.append((.aircraftChanged, .aircraftChange(previous: lastKnown, current: currentAircraft)))
+            state.lastKnownAircraft = currentAircraft
+            state.pendingAircraft = nil
+            state.hasBeenAirborneThisSession = false
+        } else {
+            state.pendingAircraft = currentAircraft
+        }
     }
 
     // MARK: - Phase-entry events
 
-    /// Drives 6 of the 11 event types generically: entering one of these
+    /// Drives 7 of the 12 event types generically: entering one of these
     /// phases (from any other phase) emits the mapped event exactly
     /// once. Adding a future phase-entry event is a one-line addition
     /// here -- `.parked` is deliberately absent; reaching it is handled
     /// separately by `detectFlightCompleted` below, since not every
     /// arrival at `.parked` represents a completed flight.
+    ///
+    /// `.climb` **must** be mapped here, unlike a purely cosmetic
+    /// omission: `FlightHistory.flightClockStart` only latches the flight
+    /// clock on `.takeoffDetected` or the first *event* whose analysis is
+    /// already airborne. A flight that goes taxi/parked -> climb directly
+    /// (skipping the momentary `.takeoff` phase, which is common) would
+    /// otherwise never latch a takeoff time until it happened to reach
+    /// `.cruise`/`.descent`/etc. -- or, if it never does before returning
+    /// to `.parked`, would record no duration at all for a flight that
+    /// genuinely happened.
     private static let phaseEntryEvents: [FlightPhase: FlightEventType] = [
         .taxi: .enteredTaxi,
         .takeoff: .takeoffDetected,
+        .climb: .enteredClimb,
         .cruise: .enteredCruise,
         .descent: .enteredDescent,
         .approach: .enteredApproach,

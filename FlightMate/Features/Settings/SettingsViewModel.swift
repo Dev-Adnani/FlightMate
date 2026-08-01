@@ -17,18 +17,21 @@ final class SettingsViewModel: ObservableObject {
     let flightAnalysisEngine: FlightAnalysisEngine
     let flightEventEngine: FlightEventEngine
     let flightHistoryEngine: FlightHistoryEngine
+    let unitPreferenceService: UnitPreferenceService
 
     init(
         telemetryService: TelemetryService,
         flightContextEngine: FlightContextEngine,
         flightAnalysisEngine: FlightAnalysisEngine,
         flightEventEngine: FlightEventEngine,
-        flightHistoryEngine: FlightHistoryEngine
+        flightHistoryEngine: FlightHistoryEngine,
+        unitPreferenceService: UnitPreferenceService
     ) {
         self.telemetryService = telemetryService
         self.flightContextEngine = flightContextEngine
         self.flightAnalysisEngine = flightAnalysisEngine
         self.flightEventEngine = flightEventEngine
         self.flightHistoryEngine = flightHistoryEngine
+        self.unitPreferenceService = unitPreferenceService
     }
 }

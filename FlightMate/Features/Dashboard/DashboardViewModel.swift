@@ -46,6 +46,7 @@ final class DashboardViewModel: ObservableObject {
     private let aircraftAssetManager: AircraftAssetManaging
     private var latestContext: FlightContext
     private var latestAnalysis: FlightAnalysis
+    private var latestUnitSystem: UnitSystem
     private var cancellables: Set<AnyCancellable> = []
 
     init(
@@ -53,11 +54,13 @@ final class DashboardViewModel: ObservableObject {
         flightAnalysisEngine: FlightAnalysisEngine,
         flightEventEngine: FlightEventEngine,
         flightHistoryEngine: FlightHistoryEngine,
-        aircraftAssetManager: AircraftAssetManaging = AircraftAssetManager()
+        aircraftAssetManager: AircraftAssetManaging = AircraftAssetManager(),
+        unitPreferenceService: UnitPreferenceService
     ) {
         self.aircraftAssetManager = aircraftAssetManager
         latestContext = flightContextEngine.context
         latestAnalysis = flightAnalysisEngine.analysis
+        latestUnitSystem = unitPreferenceService.unitSystem
 
         // Deliveries are scheduled asynchronously on the main queue so
         // `@Published` mutations never happen synchronously inside a
@@ -103,6 +106,16 @@ final class DashboardViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+
+        unitPreferenceService.$unitSystem
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] unitSystem in
+                DispatchQueue.main.async {
+                    self?.latestUnitSystem = unitSystem
+                    self?.refreshCombinedCards()
+                }
+            }
+            .store(in: &cancellables)
     }
 
     /// Cards driven purely by `FlightAnalysis`.
@@ -122,7 +135,10 @@ final class DashboardViewModel: ObservableObject {
     /// recomputed whenever either source updates.
     private func refreshCombinedCards() {
         setIfChanged(\.navigation, NavigationCardModel.from(context: latestContext, analysis: latestAnalysis))
-        setIfChanged(\.telemetry, TelemetryCardModel.from(context: latestContext, analysis: latestAnalysis))
+        setIfChanged(
+            \.telemetry,
+            TelemetryCardModel.from(context: latestContext, analysis: latestAnalysis, unitSystem: latestUnitSystem)
+        )
         setIfChanged(\.connectionStatus, ConnectionStatusCardModel.from(context: latestContext, analysis: latestAnalysis))
     }
 

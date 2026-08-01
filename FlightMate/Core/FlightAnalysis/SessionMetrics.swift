@@ -22,4 +22,17 @@ struct SessionMetrics: Equatable {
     /// Elapsed time since `flightStartDate`, recomputed on every
     /// `record(_:)` call. `nil` until `flightStartDate` is set.
     var durationSeconds: TimeInterval?
+
+    /// Highest altitude observed this session, in feet. `nil` until at
+    /// least one `XGPS` altitude sample has been recorded.
+    var maxAltitudeFeet: Double?
+
+    /// Highest ground speed observed this session, in knots. `nil` until
+    /// at least one `XGPS` ground-speed sample has been recorded.
+    var maxGroundSpeedKnots: Double?
+
+    /// Mean ground speed across every sample observed this session, in
+    /// knots. `nil` until at least one `XGPS` ground-speed sample has
+    /// been recorded.
+    var averageGroundSpeedKnots: Double?
 }

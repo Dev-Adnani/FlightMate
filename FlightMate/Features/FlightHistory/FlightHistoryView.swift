@@ -2,19 +2,29 @@
 //  FlightHistoryView.swift
 //  FlightMate
 //
-//  Product Flight History: current flight timeline + earlier flights log.
-//  Debug inspector lives under Settings → Developer.
+//  Product Flight History: current flight timeline + earlier flights log
+//  (this session's in-memory flights plus the persisted logbook from
+//  previous sessions). Debug inspector lives under Settings → Developer.
 //
 
 import SwiftUI
 
 struct FlightHistoryView: View {
     @StateObject private var viewModel: FlightHistoryViewModel
+    @ObservedObject var unitPreferenceService: UnitPreferenceService
 
-    init(flightHistoryEngine: FlightHistoryEngine) {
+    init(
+        flightHistoryEngine: FlightHistoryEngine,
+        flightHistoryPersistenceService: FlightHistoryPersistenceService,
+        unitPreferenceService: UnitPreferenceService
+    ) {
         _viewModel = StateObject(
-            wrappedValue: FlightHistoryViewModel(flightHistoryEngine: flightHistoryEngine)
+            wrappedValue: FlightHistoryViewModel(
+                flightHistoryEngine: flightHistoryEngine,
+                flightHistoryPersistenceService: flightHistoryPersistenceService
+            )
         )
+        self.unitPreferenceService = unitPreferenceService
     }
 
     var body: some View {
@@ -22,8 +32,8 @@ struct FlightHistoryView: View {
             flightList
                 .navigationSplitViewColumnWidth(min: 260, ideal: 300)
         } detail: {
-            if let history = viewModel.selectedHistory {
-                FlightHistoryDetailPane(history: history)
+            if let item = viewModel.selectedHistory {
+                FlightHistoryDetailPane(item: item, unitSystem: unitPreferenceService.unitSystem)
             } else {
                 EmptyStateView(
                     systemImage: "clock",
@@ -39,16 +49,16 @@ struct FlightHistoryView: View {
         List(selection: $viewModel.selectedHistoryID) {
             if let current = viewModel.currentHistory {
                 Section("Current flight") {
-                    FlightHistoryRow(history: current, isCurrent: true)
+                    FlightHistoryRow(item: .live(current), isCurrent: true)
                         .tag(current.id)
                 }
             }
 
             if !viewModel.earlierFlights.isEmpty {
                 Section("Earlier flights") {
-                    ForEach(viewModel.earlierFlights) { history in
-                        FlightHistoryRow(history: history, isCurrent: false)
-                            .tag(history.id)
+                    ForEach(viewModel.earlierFlights) { item in
+                        FlightHistoryRow(item: item, isCurrent: false)
+                            .tag(item.id)
                     }
                 }
             }
@@ -66,13 +76,13 @@ struct FlightHistoryView: View {
 }
 
 private struct FlightHistoryRow: View {
-    let history: FlightHistory
+    let item: FlightHistoryListItem
     let isCurrent: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(aircraftLabel)
+                Text(item.aircraftLabel)
                     .font(.body.weight(.medium))
                     .lineLimit(1)
                 Spacer()
@@ -91,36 +101,30 @@ private struct FlightHistoryRow: View {
         .accessibilityElement(children: .combine)
     }
 
-    private var aircraftLabel: String {
-        history.currentAircraft?.aircraft?.nameFull
-            ?? history.currentAircraft?.aircraftCode
-            ?? "Unknown aircraft"
-    }
-
     private var routeLabel: String {
-        let dep = history.departureAirport?.icaoCode ?? "—"
-        let dest = history.destinationAirport?.icaoCode ?? "—"
+        let dep = item.departureICAO ?? "—"
+        let dest = item.destinationICAO ?? "—"
         return "\(dep) → \(dest)"
     }
 
     private var durationLabel: String {
-        if let seconds = history.flightDurationSeconds {
+        if let seconds = item.flightDurationSeconds {
             return Duration.seconds(seconds).formatted(.time(pattern: .hourMinuteSecond))
         }
         return isCurrent ? "Preflight" : "—"
     }
 
     private var statusLabel: String {
-        switch history.status {
-        case .active: return history.hasStartedFlight ? "In progress" : "Preflight"
+        switch item.status {
+        case .active: return item.hasStartedFlight ? "In progress" : "Preflight"
         case .completed: return "Completed"
         case .aborted: return "Aborted"
         }
     }
 
     private var statusColor: Color {
-        switch history.status {
-        case .active: return history.hasStartedFlight ? Theme.color(for: .healthy) : Theme.color(for: .informational)
+        switch item.status {
+        case .active: return item.hasStartedFlight ? Theme.color(for: .healthy) : Theme.color(for: .informational)
         case .completed: return Theme.color(for: .informational)
         case .aborted: return Theme.color(for: .warning)
         }
@@ -128,35 +132,40 @@ private struct FlightHistoryRow: View {
 }
 
 private struct FlightHistoryDetailPane: View {
-    let history: FlightHistory
+    let item: FlightHistoryListItem
+    let unitSystem: UnitSystem
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.sectionGap) {
                 DetailHeader(
-                    title: history.currentAircraft?.aircraft?.nameFull
-                        ?? history.currentAircraft?.aircraftCode
-                        ?? "Flight",
+                    title: item.aircraftLabel,
                     subtitle: routeSubtitle,
                     badge: badge
                 )
 
                 metrics
 
-                VStack(alignment: .leading, spacing: Theme.Spacing.contentGap) {
-                    Text("Timeline")
-                        .font(Theme.Typography.section)
-                    ForEach(history.events, id: \.eventId) { event in
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text(event.timestamp.formatted(date: .omitted, time: .standard))
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.tertiary)
-                                .frame(width: 72, alignment: .leading)
-                            Label(event.type.displayName, systemImage: event.type.systemImage)
-                                .font(.body)
+                if let events = item.events {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.contentGap) {
+                        Text("Timeline")
+                            .font(Theme.Typography.section)
+                        ForEach(events, id: \.eventId) { event in
+                            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                Text(event.timestamp.formatted(date: .omitted, time: .standard))
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.tertiary)
+                                    .frame(width: 72, alignment: .leading)
+                                Label(event.type.displayName, systemImage: event.type.systemImage)
+                                    .font(.body)
+                            }
+                            .padding(.vertical, 3)
                         }
-                        .padding(.vertical, 3)
                     }
+                } else {
+                    Text("From a previous session — full timeline isn't saved, only this summary.")
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .padding(Theme.Spacing.dashboardPadding)
@@ -166,14 +175,14 @@ private struct FlightHistoryDetailPane: View {
     }
 
     private var routeSubtitle: String {
-        let dep = history.departureAirport?.icaoCode ?? "—"
-        let dest = history.destinationAirport?.icaoCode ?? "—"
+        let dep = item.departureICAO ?? "—"
+        let dest = item.destinationICAO ?? "—"
         return "\(dep) → \(dest)"
     }
 
     private var badge: String? {
-        switch history.status {
-        case .active: return history.hasStartedFlight ? "In progress" : "Preflight"
+        switch item.status {
+        case .active: return item.hasStartedFlight ? "In progress" : "Preflight"
         case .completed: return "Completed"
         case .aborted: return "Aborted"
         }
@@ -186,19 +195,34 @@ private struct FlightHistoryDetailPane: View {
             spacing: Theme.Spacing.contentGap
         ) {
             metric("Duration", durationText)
-            metric("Events", "\(history.events.count)")
-            metric("Started", history.startTime.formatted(date: .abbreviated, time: .shortened))
+            metric("Events", item.events.map { "\($0.count)" } ?? "—")
+            metric("Started", item.startTime.formatted(date: .abbreviated, time: .shortened))
             metric(
                 "Takeoff",
-                history.takeoffTime?.formatted(date: .omitted, time: .shortened) ?? "—"
+                item.takeoffTime?.formatted(date: .omitted, time: .shortened) ?? "—"
             )
+            metric("Max Altitude", maxAltitudeText)
+            metric("Max Speed", maxGroundSpeedText)
+            metric("Avg Speed", averageGroundSpeedText)
         }
     }
 
     private var durationText: String {
-        history.flightDurationSeconds.map {
+        item.flightDurationSeconds.map {
             Duration.seconds($0).formatted(.time(pattern: .hourMinuteSecond))
         } ?? "—"
+    }
+
+    private var maxAltitudeText: String {
+        UnitFormatting.altitude(feet: item.maxAltitudeFeet, system: unitSystem)
+    }
+
+    private var maxGroundSpeedText: String {
+        UnitFormatting.speed(knots: item.maxGroundSpeedKnots, system: unitSystem)
+    }
+
+    private var averageGroundSpeedText: String {
+        UnitFormatting.speed(knots: item.averageGroundSpeedKnots, system: unitSystem)
     }
 
     private func metric(_ label: String, _ value: String) -> some View {
@@ -221,5 +245,13 @@ private struct FlightHistoryDetailPane: View {
     )
     let flightAnalysisEngine = FlightAnalysisEngine(flightContextEngine: flightContextEngine)
     let flightEventEngine = FlightEventEngine(flightAnalysisEngine: flightAnalysisEngine)
-    FlightHistoryView(flightHistoryEngine: FlightHistoryEngine(flightEventEngine: flightEventEngine))
+    let flightHistoryEngine = FlightHistoryEngine(flightEventEngine: flightEventEngine)
+    FlightHistoryView(
+        flightHistoryEngine: flightHistoryEngine,
+        flightHistoryPersistenceService: FlightHistoryPersistenceService(
+            flightHistoryEngine: flightHistoryEngine,
+            persistenceService: PersistenceService(isStoredInMemoryOnly: true)
+        ),
+        unitPreferenceService: UnitPreferenceService()
+    )
 }

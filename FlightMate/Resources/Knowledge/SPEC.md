@@ -66,13 +66,14 @@ resource must have a **globally unique basename**:
 
 ### Section
 
-| Field | Type |
-|-------|------|
-| `id` | string |
-| `title` | string |
-| `order` | int |
-| `optional` | bool? |
-| `steps` | Step[] |
+| Field | Type | Notes |
+|-------|------|--------|
+| `id` | string | |
+| `title` | string | |
+| `order` | int | |
+| `optional` | bool? | |
+| `applicablePhases` | string[]? | Flight phases this section is normally performed during (see Flight phase names below). Omit/empty = not phase-restricted. Drives the "suggested section" hint in the overview. |
+| `steps` | Step[] | |
 
 ### Step
 
@@ -85,7 +86,7 @@ resource must have a **globally unique basename**:
 | `purpose` | yes | Why it matters |
 | `location` | yes | `{ panel, section, hint }` |
 | `expectedResult` | yes | string[] |
-| `verification` | yes | `{ "mode": "manual" }` (v1) |
+| `verification` | yes | `{ "mode": "manual" }` or `{ "mode": "automatic", "condition": {...} }` |
 | `condition` | no | e.g. only if EXT PWR AVAIL |
 | `caution` | no | |
 | `notes` | no | string[] |
@@ -94,11 +95,32 @@ resource must have a **globally unique basename**:
 | `highlight` | no | Future panel area id |
 | `references` | no | Shared system ids (future) |
 
-### Verification (forward-compatible)
+### Verification
 
-Today: `{ "mode": "manual" }`
+Manual (default, user taps the step done): `{ "mode": "manual" }`
 
-Later: `{ "mode": "automatic", "telemetry": { ... } }` — no schema break.
+Automatic (auto-completed once `condition` is satisfied by live
+telemetry — see `ProcedureConditionEvaluator`):
+
+```json
+{ "mode": "automatic", "condition": { "kind": "onGround" } }
+{ "mode": "automatic", "condition": { "kind": "minAltitudeFeet", "value": 1000 } }
+{ "mode": "automatic", "condition": { "kind": "maxGroundSpeedKnots", "value": 30 } }
+{ "mode": "automatic", "condition": { "kind": "flightPhase", "phase": "cruise" } }
+```
+
+`condition.kind` is one of `onGround`, `minAltitudeFeet`,
+`maxAltitudeFeet`, `minGroundSpeedKnots`, `maxGroundSpeedKnots`,
+`flightPhase`. Only telemetry-observable conditions are supported —
+Aerofly's UDP/session feed exposes no aircraft systems state (flaps,
+switches, gear handle position), so a step like "BAT 1 → ON" can never
+be auto-verified and must stay manual.
+
+### Flight phase names
+
+Used by `verification.condition.phase` (kind `flightPhase`) and by
+`Section.applicablePhases`. Must match one of: `unknown`, `parked`,
+`taxi`, `takeoff`, `climb`, `cruise`, `descent`, `approach`, `landing`.
 
 ## Fidelity tiers
 

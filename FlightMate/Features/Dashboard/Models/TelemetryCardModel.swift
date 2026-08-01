@@ -15,15 +15,16 @@ import Foundation
 
 /// Everything `TelemetryCard` needs to render, and nothing else.
 struct TelemetryCardModel: Equatable {
-    private static let metersToFeet = 3.280839895
-    private static let metersPerSecondToKnots = 1.9438444924
-
+    /// Always in aviation units internally (feet, knots) regardless of
+    /// `unitSystem` -- only `TelemetryCard`'s display strings convert, via
+    /// `UnitFormatting`, at the point of rendering.
     let altitudeFeet: Double?
     let groundSpeedKnots: Double?
     let headingDegrees: Double?
     let verticalSpeedFeetPerMinute: Double?
     let connectionHealthLevel: HealthLevel
     let connectionHealthLabel: String
+    let unitSystem: UnitSystem
 
     static let empty = TelemetryCardModel(
         altitudeFeet: nil,
@@ -31,17 +32,19 @@ struct TelemetryCardModel: Equatable {
         headingDegrees: nil,
         verticalSpeedFeetPerMinute: nil,
         connectionHealthLevel: .neutral,
-        connectionHealthLabel: TelemetryHealth.notConnected.displayLabel
+        connectionHealthLabel: TelemetryHealth.notConnected.displayLabel,
+        unitSystem: .imperial
     )
 
-    static func from(context: FlightContext, analysis: FlightAnalysis) -> TelemetryCardModel {
+    static func from(context: FlightContext, analysis: FlightAnalysis, unitSystem: UnitSystem) -> TelemetryCardModel {
         TelemetryCardModel(
-            altitudeFeet: context.altitudeMeters.map { $0 * metersToFeet },
-            groundSpeedKnots: context.groundSpeedMetersPerSecond.map { $0 * metersPerSecondToKnots },
+            altitudeFeet: context.altitudeMeters.map(UnitConversion.feet(fromMeters:)),
+            groundSpeedKnots: context.groundSpeedMetersPerSecond.map(UnitConversion.knots(fromMetersPerSecond:)),
             headingDegrees: context.headingDegreesTrue,
             verticalSpeedFeetPerMinute: analysis.estimatedVerticalSpeedFeetPerMinute,
             connectionHealthLevel: analysis.telemetryHealth.healthLevel,
-            connectionHealthLabel: analysis.telemetryHealth.displayLabel
+            connectionHealthLabel: analysis.telemetryHealth.displayLabel,
+            unitSystem: unitSystem
         )
     }
 }

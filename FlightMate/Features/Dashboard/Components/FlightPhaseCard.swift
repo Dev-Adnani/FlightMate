@@ -2,7 +2,7 @@
 //  FlightPhaseCard.swift
 //  FlightMate
 //
-//  Dashboard card: "What phase of flight am I in?"
+//  Dashboard card: current phase of flight.
 //
 
 import SwiftUI
@@ -17,33 +17,46 @@ struct FlightPhaseCard: DashboardCard {
 
     var body: some View {
         CardContainer(title: cardTitle, systemImage: cardIcon) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.rowGap) {
-                HStack(spacing: 10) {
-                    Image(systemName: model.phaseSystemImage)
-                        .font(.system(size: 28))
-                        .symbolRenderingMode(.hierarchical)
-                        .accessibilityHidden(true)
-                    Text(model.phaseDisplayName)
-                        .font(.title3.weight(.semibold))
-                    Spacer()
-                    Text(model.flightStatusLabel)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: Theme.Spacing.contentGap) {
+                HStack(alignment: .center, spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: Theme.Layout.iconWellCornerRadius, style: .continuous)
+                            .fill(Theme.Colors.accent.opacity(0.14))
+                            .frame(width: Theme.Spacing.iconWell, height: Theme.Spacing.iconWell)
+                        Image(systemName: model.phaseSystemImage)
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(Theme.Colors.accent)
+                            .symbolRenderingMode(.hierarchical)
+                            .accessibilityHidden(true)
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(model.phaseDisplayName)
+                            .font(.title3.weight(.semibold))
+                            .contentTransition(.opacity)
+                        Text(model.flightStatusLabel)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
                 }
 
                 if !model.phaseReasons.isEmpty {
-                    VStack(alignment: .leading, spacing: 2) {
-                        ForEach(model.phaseReasons, id: \.self) { reason in
-                            Text(reason)
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(model.phaseReasons.prefix(3), id: \.self) { reason in
+                            Label(reason, systemImage: "checkmark.circle.fill")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .symbolRenderingMode(.hierarchical)
+                                .labelStyle(.titleAndIcon)
                         }
                     }
                 }
 
                 StatusBadge(
                     level: model.confidenceLevel == .high ? .healthy : .warning,
-                    label: model.confidenceLevel == .high ? "High Confidence" : "Low Confidence"
+                    label: model.confidenceLevel == .high ? "High Confidence" : "Low Confidence",
+                    compact: true
                 )
             }
         }
@@ -54,5 +67,6 @@ struct FlightPhaseCard: DashboardCard {
 #Preview {
     FlightPhaseCard(model: .idle)
         .padding()
-        .frame(width: 320)
+        .frame(width: 320, height: 200)
+        .background(Theme.dashboardBackground)
 }

@@ -20,9 +20,6 @@ import Foundation
 /// reads unambiguously: `FlightAnalysisEngine` (stateful orchestrator) ->
 /// `FlightAnalysisService` (pure logic) -> `FlightAnalysis` (output).
 enum FlightAnalysisService {
-    private static let metersToFeet = 3.28084
-    private static let metersPerSecondToKnots = 1.94384
-
     /// Produces a new `FlightAnalysis` from one `FlightContext`
     /// observation.
     ///
@@ -74,8 +71,8 @@ enum FlightAnalysisService {
         let profile = FlightPerformanceProfile.make(from: resolvedSession?.aircraft)
 
         let phaseInputs = PhaseInputs(
-            groundSpeedKts: currentContext.groundSpeedMetersPerSecond.map { $0 * metersPerSecondToKnots },
-            altitudeFeet: currentContext.altitudeMeters.map { $0 * metersToFeet },
+            groundSpeedKts: currentContext.groundSpeedMetersPerSecond.map(UnitConversion.knots(fromMetersPerSecond:)),
+            altitudeFeet: currentContext.altitudeMeters.map(UnitConversion.feet(fromMeters:)),
             isClimbing: isClimbing,
             isDescending: isDescending,
             distanceToNearestAirportNauticalMiles: distance,
@@ -104,6 +101,9 @@ enum FlightAnalysisService {
             estimatedGroundTrackDegreesTrue: groundTrack,
             estimatedSessionDistanceNauticalMiles: sessionMetrics.distanceTraveledNauticalMiles,
             estimatedSessionDurationSeconds: sessionMetrics.durationSeconds,
+            maxAltitudeFeet: sessionMetrics.maxAltitudeFeet,
+            maxGroundSpeedKnots: sessionMetrics.maxGroundSpeedKnots,
+            averageGroundSpeedKnots: sessionMetrics.averageGroundSpeedKnots,
             nearestAirport: nearestAirport,
             distanceToNearestAirportNauticalMiles: distance,
             telemetryHealth: health,
@@ -146,7 +146,7 @@ enum FlightAnalysisService {
             return previousAnalysis.estimatedVerticalSpeedFeetPerMinute
         }
 
-        let deltaFeet = (currentAltitude - previousAltitude) * metersToFeet
+        let deltaFeet = UnitConversion.feet(fromMeters: currentAltitude - previousAltitude)
         return deltaFeet / (deltaSeconds / 60)
     }
 

@@ -116,6 +116,68 @@ struct FlightAnalysisServicePhaseTests {
         #expect(thirdPhase == .taxi)
     }
 
+    // MARK: - Ground-phase reachability guard (bugfix-parked-guard)
+
+    @Test func groundTransitionGuardPreventsPrematureParkedFromCruise() {
+        // Regression test: a frozen/bad near-zero-speed sample right after
+        // an established cruise must not be misclassified as ".parked" --
+        // that would prematurely end the flight. Falls through to
+        // "retain previous phase" instead.
+        let (phase, reasons) = FlightAnalysisService.determinePhase(makeInputs(
+            groundSpeedKts: 0, altitudeFeet: 30_000, previousPhase: .cruise, profile: a320Profile
+        ))
+        #expect(phase == .cruise)
+        #expect(reasons.contains("No clear phase transition detected; retaining previous phase"))
+    }
+
+    @Test func groundTransitionGuardPreventsPrematureTaxiFromClimb() {
+        let (phase, _) = FlightAnalysisService.determinePhase(makeInputs(
+            groundSpeedKts: 5, altitudeFeet: 5_000, previousPhase: .climb, profile: a320Profile
+        ))
+        #expect(phase != .parked)
+        #expect(phase != .taxi)
+    }
+
+    @Test func groundTransitionGuardPreventsPrematureTaxiFromDescent() {
+        let (phase, _) = FlightAnalysisService.determinePhase(makeInputs(
+            groundSpeedKts: 10, altitudeFeet: 2_000, previousPhase: .descent, profile: a320Profile
+        ))
+        #expect(phase != .parked)
+        #expect(phase != .taxi)
+    }
+
+    @Test func groundTransitionRemainsAllowedFromLandingOrApproach() {
+        // Approach/landing must remain valid predecessors -- decelerating
+        // through them is the normal path to actually reaching the ground.
+        let (phase, _) = FlightAnalysisService.determinePhase(makeInputs(
+            groundSpeedKts: 0, altitudeFeet: 0, previousPhase: .landing, profile: a320Profile
+        ))
+        #expect(phase == .parked)
+    }
+
+    // MARK: - Cold-start takeoff guard (bugfix-coldstart-takeoff)
+
+    @Test func coldStartNeverFiresAFalseTakeoffWhenAlreadyLevelAndFast() {
+        // Connecting mid-flight (no prior observation at all) must not be
+        // classified as a fresh takeoff just because it's level and fast.
+        let (phase, reasons) = FlightAnalysisService.determinePhase(makeInputs(
+            groundSpeedKts: 250, altitudeFeet: 8_000, previousPhase: .unknown, profile: a320Profile
+        ))
+        #expect(phase == .cruise)
+        #expect(reasons.contains("No prior observation to compare against"))
+    }
+
+    @Test func genuineTakeoffStillFiresOnceGroundHasActuallyBeenObserved() {
+        // Once the phase machine has actually seen the aircraft on the
+        // ground (previousPhase != .unknown), the ordinary takeoff rule
+        // must still fire -- the cold-start guard only ever suppresses
+        // the *very first*, ambiguous sample.
+        let (phase, _) = FlightAnalysisService.determinePhase(makeInputs(
+            groundSpeedKts: 60, altitudeFeet: 0, previousPhase: .taxi, profile: a320Profile
+        ))
+        #expect(phase == .takeoff)
+    }
+
     @Test func retainsPreviousPhaseWhenNoRuleMatchesCleanly() {
         // Level, faster than taxi, but altitude below cruise threshold
         // with a previous phase that isn't airborne-eligible for takeoff

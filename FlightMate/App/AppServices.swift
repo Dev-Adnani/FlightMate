@@ -36,6 +36,9 @@ final class AppServices: ObservableObject {
     let mapTrailService: MapTrailService
     let aircraftAssetManager: AircraftAssetManaging
     let procedureService: ProcedureService
+    let unitPreferenceService: UnitPreferenceService
+    let persistenceService: PersistenceService
+    let flightHistoryPersistenceService: FlightHistoryPersistenceService
 
     init() {
         let telemetryService = TelemetryService()
@@ -49,6 +52,7 @@ final class AppServices: ObservableObject {
         self.aircraftService = aircraftService
         self.airportService = airportService
         self.procedureService = procedureService
+        self.unitPreferenceService = UnitPreferenceService()
         aircraftAssetManager = AircraftAssetManager()
 
         let flightContextEngine = FlightContextEngine(
@@ -75,6 +79,13 @@ final class AppServices: ObservableObject {
         // `FlightHistoryEngine`'s construction-order documentation.
         let flightHistoryEngine = FlightHistoryEngine(flightEventEngine: flightEventEngine)
         self.flightHistoryEngine = flightHistoryEngine
+
+        let persistenceService = PersistenceService()
+        self.persistenceService = persistenceService
+        flightHistoryPersistenceService = FlightHistoryPersistenceService(
+            flightHistoryEngine: flightHistoryEngine,
+            persistenceService: persistenceService
+        )
 
         mapTrailService = MapTrailService(
             flightContextEngine: flightContextEngine,

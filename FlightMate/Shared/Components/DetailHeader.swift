@@ -13,7 +13,7 @@ struct DetailHeader: View {
     var badge: String? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(title)
                     .font(Theme.Typography.title)
@@ -21,11 +21,15 @@ struct DetailHeader: View {
                 if let badge {
                     Text(badge)
                         .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Theme.color(for: .healthy).opacity(0.15))
-                        .foregroundStyle(Theme.color(for: .healthy))
-                        .clipShape(Capsule())
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(Theme.Colors.accent.opacity(0.16))
+                        .foregroundStyle(Theme.Colors.accent)
+                        .clipShape(Capsule(style: .continuous))
+                        .overlay {
+                            Capsule(style: .continuous)
+                                .strokeBorder(Theme.Colors.accent.opacity(0.28), lineWidth: 1)
+                        }
                 }
             }
             if let subtitle, !subtitle.isEmpty {

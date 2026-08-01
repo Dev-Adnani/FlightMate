@@ -94,6 +94,67 @@ struct SessionMetricsTrackerTests {
         #expect(tracker.metrics.durationSeconds == 90)
     }
 
+    @Test func maxAltitudeTracksTheHighestObservedSampleInFeet() {
+        let tracker = SessionMetricsTracker()
+
+        tracker.record(makeContext(latitude: 0, longitude: 0, altitudeMeters: 1_000))
+        #expect(tracker.metrics.maxAltitudeFeet == UnitConversion.feet(fromMeters: 1_000))
+
+        tracker.record(makeContext(latitude: 0, longitude: 0, altitudeMeters: 500))
+        // A lower later sample must never pull the max back down.
+        #expect(tracker.metrics.maxAltitudeFeet == UnitConversion.feet(fromMeters: 1_000))
+
+        tracker.record(makeContext(latitude: 0, longitude: 0, altitudeMeters: 2_000))
+        #expect(tracker.metrics.maxAltitudeFeet == UnitConversion.feet(fromMeters: 2_000))
+    }
+
+    @Test func maxGroundSpeedTracksTheHighestObservedSampleInKnots() {
+        let tracker = SessionMetricsTracker()
+
+        tracker.record(makeContext(latitude: 0, longitude: 0, groundSpeedMetersPerSecond: 50))
+        tracker.record(makeContext(latitude: 0, longitude: 0, groundSpeedMetersPerSecond: 30))
+        tracker.record(makeContext(latitude: 0, longitude: 0, groundSpeedMetersPerSecond: 80))
+
+        #expect(tracker.metrics.maxGroundSpeedKnots == UnitConversion.knots(fromMetersPerSecond: 80))
+    }
+
+    @Test func averageGroundSpeedIsTheMeanOfEverySampleSeen() {
+        let tracker = SessionMetricsTracker()
+
+        tracker.record(makeContext(latitude: 0, longitude: 0, groundSpeedMetersPerSecond: 10))
+        tracker.record(makeContext(latitude: 0, longitude: 0, groundSpeedMetersPerSecond: 20))
+        tracker.record(makeContext(latitude: 0, longitude: 0, groundSpeedMetersPerSecond: 30))
+
+        let expectedAverage = UnitConversion.knots(fromMetersPerSecond: 20) // (10+20+30)/3
+        #expect(tracker.metrics.averageGroundSpeedKnots != nil)
+        #expect(abs(tracker.metrics.averageGroundSpeedKnots! - expectedAverage) < 0.0001)
+    }
+
+    @Test func altitudeAndSpeedExtremesResetAlongsideDistanceOnNewSession() {
+        let tracker = SessionMetricsTracker()
+
+        tracker.record(makeContext(latitude: 0, longitude: 0, aircraftCode: "a320_neo", altitudeMeters: 5_000, groundSpeedMetersPerSecond: 100))
+        #expect(tracker.metrics.maxAltitudeFeet != nil)
+        #expect(tracker.metrics.maxGroundSpeedKnots != nil)
+        #expect(tracker.metrics.averageGroundSpeedKnots != nil)
+
+        tracker.record(makeContext(latitude: 0, longitude: 0, aircraftCode: "c172", altitudeMeters: 100, groundSpeedMetersPerSecond: 20))
+        #expect(tracker.metrics.maxAltitudeFeet == UnitConversion.feet(fromMeters: 100))
+        #expect(tracker.metrics.maxGroundSpeedKnots == UnitConversion.knots(fromMetersPerSecond: 20))
+        #expect(tracker.metrics.averageGroundSpeedKnots == UnitConversion.knots(fromMetersPerSecond: 20))
+    }
+
+    @Test func nilAltitudeOrSpeedSamplesAreSkippedRatherThanTreatedAsZero() {
+        let tracker = SessionMetricsTracker()
+
+        tracker.record(makeContext(latitude: 0, longitude: 0, altitudeMeters: 1_000, groundSpeedMetersPerSecond: 50))
+        tracker.record(makeContext(latitude: 0, longitude: 0)) // no altitude/speed this sample
+
+        #expect(tracker.metrics.maxAltitudeFeet == UnitConversion.feet(fromMeters: 1_000))
+        #expect(tracker.metrics.maxGroundSpeedKnots == UnitConversion.knots(fromMetersPerSecond: 50))
+        #expect(tracker.metrics.averageGroundSpeedKnots == UnitConversion.knots(fromMetersPerSecond: 50))
+    }
+
     @Test func flightStartDateResetsAlongsideDistanceOnNewSession() {
         let clock = MutableClock(start: Date(timeIntervalSince1970: 1_000))
         let tracker = SessionMetricsTracker(now: clock.now)
@@ -116,7 +177,9 @@ private func makeContext(
     latitude: Double,
     longitude: Double,
     aircraftCode: String? = nil,
-    departureCode: String? = nil
+    departureCode: String? = nil,
+    altitudeMeters: Double? = nil,
+    groundSpeedMetersPerSecond: Double? = nil
 ) -> FlightContext {
     var session: AeroflySession?
     if aircraftCode != nil || departureCode != nil {
@@ -133,6 +196,8 @@ private func makeContext(
     return FlightContext(
         latitude: latitude,
         longitude: longitude,
+        altitudeMeters: altitudeMeters,
+        groundSpeedMetersPerSecond: groundSpeedMetersPerSecond,
         connectionStatus: .listening,
         aeroflySession: session
     )

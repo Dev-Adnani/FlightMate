@@ -21,6 +21,13 @@ final class SessionMetricsTracker: SessionMetricsTracking {
     private var lastDepartureCode: String?
     private var lastPosition: GeoCoordinate?
 
+    /// Running sum/count backing `metrics.averageGroundSpeedKnots`. Kept
+    /// as private tracker state (not on `SessionMetrics` itself) since
+    /// they're bookkeeping for this running mean, not a metric anyone
+    /// downstream should read directly.
+    private var groundSpeedSampleSumKnots: Double = 0
+    private var groundSpeedSampleCount: Int = 0
+
     private let now: () -> Date
 
     /// - Parameter now: Injected clock, mirroring `AeroflySessionService`'s
@@ -53,6 +60,7 @@ final class SessionMetricsTracker: SessionMetricsTracking {
         }
 
         accumulateDistance(to: context.bestKnownPosition)
+        accumulateAltitudeAndSpeed(altitudeMeters: context.altitudeMeters, groundSpeedMetersPerSecond: context.groundSpeedMetersPerSecond)
     }
 
     // MARK: - Reset rules
@@ -71,6 +79,8 @@ final class SessionMetricsTracker: SessionMetricsTracking {
     private func resetForNewSession() {
         metrics = SessionMetrics()
         lastPosition = nil
+        groundSpeedSampleSumKnots = 0
+        groundSpeedSampleCount = 0
     }
 
     // MARK: - Distance accumulation
@@ -88,6 +98,29 @@ final class SessionMetricsTracker: SessionMetricsTracking {
         guard delta > FlightAnalysisConstants.distanceNoiseFloorNm else { return }
 
         metrics.distanceTraveledNauticalMiles += delta
+    }
+
+    // MARK: - Altitude / speed accumulation
+
+    /// Updates the running max altitude, max ground speed, and mean
+    /// ground speed for the current session. Each input is independent
+    /// (a `nil` altitude doesn't block updating ground speed, and vice
+    /// versa) since `XGPS` always carries both together in practice, but
+    /// nothing here should assume that.
+    private func accumulateAltitudeAndSpeed(altitudeMeters: Double?, groundSpeedMetersPerSecond: Double?) {
+        if let altitudeMeters {
+            let altitudeFeet = UnitConversion.feet(fromMeters: altitudeMeters)
+            metrics.maxAltitudeFeet = max(metrics.maxAltitudeFeet ?? altitudeFeet, altitudeFeet)
+        }
+
+        if let groundSpeedMetersPerSecond {
+            let groundSpeedKnots = UnitConversion.knots(fromMetersPerSecond: groundSpeedMetersPerSecond)
+            metrics.maxGroundSpeedKnots = max(metrics.maxGroundSpeedKnots ?? groundSpeedKnots, groundSpeedKnots)
+
+            groundSpeedSampleSumKnots += groundSpeedKnots
+            groundSpeedSampleCount += 1
+            metrics.averageGroundSpeedKnots = groundSpeedSampleSumKnots / Double(groundSpeedSampleCount)
+        }
     }
 
     /// Tiny, self-contained haversine calculation -- see this type's doc

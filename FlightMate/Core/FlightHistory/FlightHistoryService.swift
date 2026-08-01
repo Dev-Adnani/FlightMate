@@ -57,11 +57,11 @@ enum FlightHistoryService {
     ///    after the aircraft has been airborne, which implies an aircraft
     ///    was loaded first), the event is dropped.
     /// 3. **Everything else** (`enteredTaxi`, `takeoffDetected`,
-    ///    `enteredCruise`, `enteredDescent`, `enteredApproach`,
-    ///    `landingDetected`, `telemetryLost`, `telemetryRecovered`) --
-    ///    appended to the active history's timeline if one exists;
-    ///    dropped otherwise (per rule 1, only an aircraft event can start
-    ///    a history in the first place).
+    ///    `enteredClimb`, `enteredCruise`, `enteredDescent`,
+    ///    `enteredApproach`, `landingDetected`, `telemetryLost`,
+    ///    `telemetryRecovered`) -- appended to the active history's
+    ///    timeline if one exists; dropped otherwise (per rule 1, only an
+    ///    aircraft event can start a history in the first place).
     ///
     /// - Parameters:
     ///   - event: The next `FlightEvent` to fold into `state`.
@@ -84,7 +84,7 @@ enum FlightHistoryService {
             )
         case .flightCompleted:
             return completingCurrentHistory(with: event, in: state, maxCompletedHistories: maxCompletedHistories)
-        case .enteredTaxi, .takeoffDetected, .enteredCruise, .enteredDescent, .enteredApproach,
+        case .enteredTaxi, .takeoffDetected, .enteredClimb, .enteredCruise, .enteredDescent, .enteredApproach,
              .landingDetected, .telemetryLost, .telemetryRecovered:
             return appendingToCurrentHistory(event, in: state)
         }

@@ -10,8 +10,16 @@ import SwiftUI
 struct ProceduresView: View {
     @StateObject private var viewModel: ProceduresViewModel
 
-    init(procedureProvider: ProcedureProviding) {
-        _viewModel = StateObject(wrappedValue: ProceduresViewModel(procedureProvider: procedureProvider))
+    init(
+        procedureProvider: ProcedureProviding,
+        flightContextEngine: FlightContextEngine,
+        flightAnalysisEngine: FlightAnalysisEngine
+    ) {
+        _viewModel = StateObject(wrappedValue: ProceduresViewModel(
+            procedureProvider: procedureProvider,
+            flightContextEngine: flightContextEngine,
+            flightAnalysisEngine: flightAnalysisEngine
+        ))
     }
 
     var body: some View {
@@ -26,13 +34,16 @@ struct ProceduresView: View {
                     ProcedureOverviewView(
                         procedure: procedure,
                         completedStepIDs: viewModel.completedStepIDs,
+                        currentFlightPhase: viewModel.currentFlightPhase,
+                        suggestedSectionID: viewModel.suggestedSection?.id,
                         onToggle: { viewModel.toggleStepCompleted($0) },
                         onOpenStep: { viewModel.openStep(at: $0) },
                         onBack: {
                             if case .overview(let aircraftId, _) = viewModel.screen {
                                 viewModel.goToProcedureList(aircraftId: aircraftId)
                             }
-                        }
+                        },
+                        onRestart: { viewModel.restartProcedure() }
                     )
                 } else {
                     EmptyStateView(
@@ -142,5 +153,14 @@ struct ProceduresView: View {
 }
 
 #Preview {
-    ProceduresView(procedureProvider: ProcedureService())
+    let telemetryService = TelemetryService()
+    let flightContextEngine = FlightContextEngine(
+        telemetryService: telemetryService,
+        aeroflySessionService: AeroflySessionService()
+    )
+    ProceduresView(
+        procedureProvider: ProcedureService(),
+        flightContextEngine: flightContextEngine,
+        flightAnalysisEngine: FlightAnalysisEngine(flightContextEngine: flightContextEngine)
+    )
 }

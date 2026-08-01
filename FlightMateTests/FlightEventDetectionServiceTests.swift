@@ -31,6 +31,17 @@ struct FlightEventDetectionServiceTests {
         #expect(result.events.map { $0.type } == [.takeoffDetected])
     }
 
+    @Test func enteredClimbFiresOnceOnTransitionIntoClimb() {
+        // Regression test (bugfix-climb-event): without this mapping, a
+        // flight that goes taxi -> climb directly (skipping the momentary
+        // .takeoff phase) never latches a flight-clock start.
+        let previous = makeAnalysis(flightPhase: .takeoff)
+        let current = makeAnalysis(flightPhase: .climb)
+
+        let result = FlightEventDetectionService.detectEvents(previous: previous, current: current, state: .init())
+        #expect(result.events.map { $0.type } == [.enteredClimb])
+    }
+
     @Test func enteredCruiseFiresOnceOnTransitionIntoCruise() {
         let previous = makeAnalysis(flightPhase: .climb)
         let current = makeAnalysis(flightPhase: .cruise)
@@ -158,20 +169,80 @@ struct FlightEventDetectionServiceTests {
         #expect(result.updatedState.lastKnownAircraft?.aircraftCode == "a320_neo")
     }
 
-    @Test func aircraftChangedFiresWithBothAircraftAsMetadataWhenCodeDiffers() {
+    @Test func aircraftChangedFiresWithBothAircraftAsMetadataOnceConfirmedOverTwoSamples() {
         let a320 = makeAircraft(code: "a320_neo")
         let c172 = makeAircraft(code: "c172")
         var state = FlightEventDetectionService.DetectionState(lastKnownAircraft: a320)
 
-        let result = FlightEventDetectionService.detectEvents(
+        // First sample of the new code: only becomes a pending candidate,
+        // doesn't emit or update lastKnownAircraft yet.
+        let firstSample = FlightEventDetectionService.detectEvents(
             previous: makeAnalysis(resolvedAircraft: a320), current: makeAnalysis(resolvedAircraft: c172), state: state
         )
-        state = result.updatedState
+        state = firstSample.updatedState
+        #expect(firstSample.events.isEmpty)
+        #expect(state.lastKnownAircraft?.aircraftCode == "a320_neo")
+        #expect(state.pendingAircraft?.aircraftCode == "c172")
 
-        #expect(result.events.map { $0.type } == [.aircraftChanged])
-        let metadata = result.events.first(where: { $0.type == .aircraftChanged })?.metadata
+        // Second consecutive sample confirms it -- now it fires.
+        let secondSample = FlightEventDetectionService.detectEvents(
+            previous: makeAnalysis(resolvedAircraft: c172), current: makeAnalysis(resolvedAircraft: c172), state: state
+        )
+        state = secondSample.updatedState
+
+        #expect(secondSample.events.map { $0.type } == [.aircraftChanged])
+        let metadata = secondSample.events.first(where: { $0.type == .aircraftChanged })?.metadata
         #expect(metadata == .aircraftChange(previous: a320, current: c172))
         #expect(state.lastKnownAircraft?.aircraftCode == "c172")
+        #expect(state.pendingAircraft == nil)
+    }
+
+    @Test func singleSampleAircraftFlickerNeverEmitsAndRevertsCleanly() {
+        // e.g. main.mcf/tm.log briefly disagreeing mid-reparse: the new
+        // code appears once, then reverts back to the original on the
+        // very next sample -- must never fire aircraftChanged.
+        let a320 = makeAircraft(code: "a320_neo")
+        let c172 = makeAircraft(code: "c172")
+        var state = FlightEventDetectionService.DetectionState(lastKnownAircraft: a320)
+
+        let flicker = FlightEventDetectionService.detectEvents(
+            previous: makeAnalysis(resolvedAircraft: a320), current: makeAnalysis(resolvedAircraft: c172), state: state
+        )
+        state = flicker.updatedState
+        #expect(state.pendingAircraft?.aircraftCode == "c172")
+
+        let reverted = FlightEventDetectionService.detectEvents(
+            previous: makeAnalysis(resolvedAircraft: c172), current: makeAnalysis(resolvedAircraft: a320), state: state
+        )
+        state = reverted.updatedState
+
+        #expect(reverted.events.isEmpty)
+        #expect(state.lastKnownAircraft?.aircraftCode == "a320_neo")
+        #expect(state.pendingAircraft == nil)
+    }
+
+    @Test func confirmedAircraftChangeResetsTheAirborneLatch() {
+        // A confirmed in-flight aircraft change must not let the old
+        // flight's "has been airborne" latch carry into the new aircraft
+        // -- otherwise the new aircraft's first arrival at .parked (even
+        // having never flown) would emit a spurious flightCompleted.
+        let a320 = makeAircraft(code: "a320_neo")
+        let c172 = makeAircraft(code: "c172")
+        var state = FlightEventDetectionService.DetectionState(
+            hasBeenAirborneThisSession: true, lastKnownAircraft: a320
+        )
+
+        let firstSample = FlightEventDetectionService.detectEvents(
+            previous: makeAnalysis(resolvedAircraft: a320), current: makeAnalysis(resolvedAircraft: c172), state: state
+        )
+        state = firstSample.updatedState
+        #expect(state.hasBeenAirborneThisSession) // not yet confirmed -- unchanged
+
+        let secondSample = FlightEventDetectionService.detectEvents(
+            previous: makeAnalysis(resolvedAircraft: c172), current: makeAnalysis(resolvedAircraft: c172), state: state
+        )
+        state = secondSample.updatedState
+        #expect(!state.hasBeenAirborneThisSession)
     }
 
     @Test func noAircraftEventWhenAircraftCodeUnchanged() {
@@ -197,12 +268,19 @@ struct FlightEventDetectionServiceTests {
         #expect(state.lastKnownAircraft?.aircraftCode == "a320_neo") // never cleared
 
         // A genuinely different aircraft afterwards still counts as a
-        // change against the *last known* code, not the transient nil.
+        // change against the *last known* code, not the transient nil --
+        // confirmed the same way, over two consecutive samples.
         let c172 = makeAircraft(code: "c172")
-        let changed = FlightEventDetectionService.detectEvents(
+        let firstSample = FlightEventDetectionService.detectEvents(
             previous: makeAnalysis(resolvedAircraft: nil), current: makeAnalysis(resolvedAircraft: c172), state: state
         )
-        #expect(changed.events.map { $0.type } == [.aircraftChanged])
+        state = firstSample.updatedState
+        #expect(firstSample.events.isEmpty)
+
+        let secondSample = FlightEventDetectionService.detectEvents(
+            previous: makeAnalysis(resolvedAircraft: c172), current: makeAnalysis(resolvedAircraft: c172), state: state
+        )
+        #expect(secondSample.events.map { $0.type } == [.aircraftChanged])
     }
 
     // MARK: - Telemetry health
@@ -268,7 +346,7 @@ struct FlightEventDetectionServiceTests {
 
     @Test func everyCurrentEventTypeDefaultsToInfoSeverity() {
         let allTypes: [FlightEventType] = [
-            .aircraftLoaded, .aircraftChanged, .enteredTaxi, .takeoffDetected, .enteredCruise,
+            .aircraftLoaded, .aircraftChanged, .enteredTaxi, .takeoffDetected, .enteredClimb, .enteredCruise,
             .enteredDescent, .enteredApproach, .landingDetected, .flightCompleted,
             .telemetryLost, .telemetryRecovered
         ]

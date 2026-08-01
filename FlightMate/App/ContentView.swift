@@ -10,10 +10,10 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var selection: NavigationDestination? = .dashboard
+    @ObservedObject var telemetryService: TelemetryService
+    @ObservedObject var flightAnalysisEngine: FlightAnalysisEngine
 
-    let telemetryService: TelemetryService
     let flightContextEngine: FlightContextEngine
-    let flightAnalysisEngine: FlightAnalysisEngine
     let flightEventEngine: FlightEventEngine
     let flightHistoryEngine: FlightHistoryEngine
     let mapTrailService: MapTrailService
@@ -21,20 +21,79 @@ struct ContentView: View {
     let aircraftProvider: AircraftProviding
     let airportProvider: AirportProviding
     let procedureProvider: ProcedureProviding
+    let unitPreferenceService: UnitPreferenceService
+    let flightHistoryPersistenceService: FlightHistoryPersistenceService
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selection) {
-                ForEach(NavigationDestination.allCases) { destination in
-                    Label(destination.title, systemImage: destination.systemImage)
-                        .tag(destination)
-                }
-            }
-            .navigationSplitViewColumnWidth(min: 180, ideal: Theme.Layout.sidebarIdeal)
-            .navigationTitle("FlightMate")
+            sidebar
         } detail: {
             destinationView(for: selection ?? .dashboard)
         }
+        .tint(Theme.Colors.accent)
+    }
+
+    private var sidebar: some View {
+        List(selection: $selection) {
+            Section("Fly") {
+                sidebarRow(.dashboard)
+                sidebarRow(.movingMap)
+                sidebarRow(.procedures)
+            }
+            Section("Reference") {
+                sidebarRow(.aircraft)
+                sidebarRow(.airports)
+                sidebarRow(.flightHistory)
+            }
+            Section {
+                sidebarRow(.settings)
+            }
+        }
+        .listStyle(.sidebar)
+        .navigationSplitViewColumnWidth(
+            min: Theme.Layout.sidebarMin,
+            ideal: Theme.Layout.sidebarIdeal
+        )
+        .navigationTitle("FlightMate")
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            connectionStrip
+        }
+    }
+
+    private func sidebarRow(_ destination: NavigationDestination) -> some View {
+        Label(destination.title, systemImage: destination.systemImage)
+            .tag(destination)
+            .symbolRenderingMode(.hierarchical)
+    }
+
+    private var connectionStrip: some View {
+        let level = flightAnalysisEngine.analysis.telemetryHealth.healthLevel
+        let label = flightAnalysisEngine.analysis.telemetryHealth.displayLabel
+        return HStack(spacing: 10) {
+            Image(systemName: "antenna.radiowaves.left.and.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.color(for: level))
+                .symbolEffect(.pulse, options: .repeating, isActive: level == .warning)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Telemetry")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(label)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Circle()
+                .fill(Theme.color(for: level))
+                .frame(width: 8, height: 8)
+                .shadow(color: Theme.color(for: level).opacity(0.5), radius: 3)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(.bar)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Telemetry \(label)")
     }
 
     @ViewBuilder
@@ -46,7 +105,8 @@ struct ContentView: View {
                 flightAnalysisEngine: flightAnalysisEngine,
                 flightEventEngine: flightEventEngine,
                 flightHistoryEngine: flightHistoryEngine,
-                aircraftAssetManager: aircraftAssetManager
+                aircraftAssetManager: aircraftAssetManager,
+                unitPreferenceService: unitPreferenceService
             )
         case .movingMap:
             MovingMapView(
@@ -55,7 +115,11 @@ struct ContentView: View {
                 mapTrailService: mapTrailService
             )
         case .flightHistory:
-            FlightHistoryView(flightHistoryEngine: flightHistoryEngine)
+            FlightHistoryView(
+                flightHistoryEngine: flightHistoryEngine,
+                flightHistoryPersistenceService: flightHistoryPersistenceService,
+                unitPreferenceService: unitPreferenceService
+            )
         case .airports:
             AirportView(
                 airportProvider: airportProvider,
@@ -68,14 +132,19 @@ struct ContentView: View {
                 aircraftAssetManager: aircraftAssetManager
             )
         case .procedures:
-            ProceduresView(procedureProvider: procedureProvider)
+            ProceduresView(
+                procedureProvider: procedureProvider,
+                flightContextEngine: flightContextEngine,
+                flightAnalysisEngine: flightAnalysisEngine
+            )
         case .settings:
             SettingsView(
                 telemetryService: telemetryService,
                 flightContextEngine: flightContextEngine,
                 flightAnalysisEngine: flightAnalysisEngine,
                 flightEventEngine: flightEventEngine,
-                flightHistoryEngine: flightHistoryEngine
+                flightHistoryEngine: flightHistoryEngine,
+                unitPreferenceService: unitPreferenceService
             )
         }
     }
@@ -90,10 +159,11 @@ struct ContentView: View {
     let flightAnalysisEngine = FlightAnalysisEngine(flightContextEngine: flightContextEngine)
     let flightEventEngine = FlightEventEngine(flightAnalysisEngine: flightAnalysisEngine)
     let flightHistoryEngine = FlightHistoryEngine(flightEventEngine: flightEventEngine)
+    let persistenceService = PersistenceService(isStoredInMemoryOnly: true)
     ContentView(
         telemetryService: telemetryService,
-        flightContextEngine: flightContextEngine,
         flightAnalysisEngine: flightAnalysisEngine,
+        flightContextEngine: flightContextEngine,
         flightEventEngine: flightEventEngine,
         flightHistoryEngine: flightHistoryEngine,
         mapTrailService: MapTrailService(
@@ -103,6 +173,11 @@ struct ContentView: View {
         aircraftAssetManager: AircraftAssetManager(),
         aircraftProvider: AircraftService(),
         airportProvider: AirportService(),
-        procedureProvider: ProcedureService()
+        procedureProvider: ProcedureService(),
+        unitPreferenceService: UnitPreferenceService(),
+        flightHistoryPersistenceService: FlightHistoryPersistenceService(
+            flightHistoryEngine: flightHistoryEngine,
+            persistenceService: persistenceService
+        )
     )
 }

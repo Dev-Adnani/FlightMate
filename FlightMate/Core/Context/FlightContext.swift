@@ -114,6 +114,21 @@ struct FlightContext: Equatable {
         return aeroflySession?.initialPosition
     }
 
+    /// `true` only once a genuine UDP `XGPS` position has been received --
+    /// unlike `bestKnownPosition`, this deliberately does **not** fall
+    /// back to the Aerofly session's `initialPosition`. Session-derived
+    /// position exists the instant `main.mcf` is parsed (often from a
+    /// stale previous flight, or the sim's default spawn point), well
+    /// before Aerofly is actually broadcasting telemetry -- surfacing it
+    /// on a live map (aircraft pin, auto-center, nearest-airport pin)
+    /// makes the map appear to "know" the aircraft's location before the
+    /// flight has genuinely started. Consumers that want a map/live
+    /// display to only ever show real, currently-broadcasting telemetry
+    /// should gate on this instead of `bestKnownPosition != nil`.
+    var hasLiveTelemetryPosition: Bool {
+        latitude != nil && longitude != nil
+    }
+
     /// A context with no telemetry yet received and an idle connection.
     static let empty = FlightContext(connectionStatus: .idle)
 

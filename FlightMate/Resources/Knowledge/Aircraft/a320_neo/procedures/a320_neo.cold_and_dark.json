@@ -18,6 +18,7 @@
       "id": "power_on",
       "title": "Power On",
       "order": 1,
+      "applicablePhases": ["parked"],
       "steps": [
         {
           "id": "safety_checks",
@@ -120,6 +121,7 @@
       "id": "apu",
       "title": "Start APU",
       "order": 2,
+      "applicablePhases": ["parked"],
       "steps": [
         {
           "id": "apu_fire_test",
@@ -267,6 +269,7 @@
       "id": "adirs_and_signs",
       "title": "ADIRS and Signs",
       "order": 3,
+      "applicablePhases": ["parked"],
       "steps": [
         {
           "id": "adirs_nav",
@@ -347,6 +350,7 @@
       "title": "Additional Checks",
       "order": 4,
       "optional": true,
+      "applicablePhases": ["parked"],
       "steps": [
         {
           "id": "eng_fire_test",
@@ -410,6 +414,7 @@
       "id": "before_start",
       "title": "Before Start",
       "order": 5,
+      "applicablePhases": ["parked"],
       "steps": [
         {
           "id": "mcdu_init_b",
@@ -560,6 +565,7 @@
       "id": "engine_start",
       "title": "Engine Start",
       "order": 6,
+      "applicablePhases": ["parked"],
       "steps": [
         {
           "id": "eng_mode_ign_start",
@@ -638,6 +644,7 @@
       "id": "after_start",
       "title": "After Start",
       "order": 7,
+      "applicablePhases": ["parked", "taxi"],
       "steps": [
         {
           "id": "arm_spoilers",
@@ -784,6 +791,7 @@
       "id": "flight_controls",
       "title": "Flight Control Check",
       "order": 8,
+      "applicablePhases": ["parked", "taxi"],
       "steps": [
         {
           "id": "sidestick_pitch",

@@ -4,8 +4,7 @@
 //
 //  FlightMate's primary workspace -- the screen a pilot keeps open on a
 //  second monitor while flying. A calm, glanceable, bento-grid summary of
-//  the current flight; see PROJECT_CONTEXT.md and this milestone's design
-//  philosophy for the "answer these questions in under 5 seconds" goal.
+//  the current flight.
 //
 
 import SwiftUI
@@ -13,9 +12,7 @@ import SwiftUI
 /// Root view for the Dashboard feature.
 ///
 /// Purely a layout: every card renders its own `@Published` model from
-/// `viewModel` and contains no business logic of its own. The bento grid
-/// (`DashboardBentoGrid`) keeps row heights even and reflows from 3 → 2 →
-/// 1 columns as the window resizes.
+/// `viewModel` and contains no business logic of its own.
 struct DashboardView: View {
     @StateObject private var viewModel: DashboardViewModel
 
@@ -24,7 +21,8 @@ struct DashboardView: View {
         flightAnalysisEngine: FlightAnalysisEngine,
         flightEventEngine: FlightEventEngine,
         flightHistoryEngine: FlightHistoryEngine,
-        aircraftAssetManager: AircraftAssetManaging = AircraftAssetManager()
+        aircraftAssetManager: AircraftAssetManaging = AircraftAssetManager(),
+        unitPreferenceService: UnitPreferenceService
     ) {
         _viewModel = StateObject(
             wrappedValue: DashboardViewModel(
@@ -32,25 +30,52 @@ struct DashboardView: View {
                 flightAnalysisEngine: flightAnalysisEngine,
                 flightEventEngine: flightEventEngine,
                 flightHistoryEngine: flightHistoryEngine,
-                aircraftAssetManager: aircraftAssetManager
+                aircraftAssetManager: aircraftAssetManager,
+                unitPreferenceService: unitPreferenceService
             )
         )
     }
 
     var body: some View {
         ScrollView {
-            DashboardBentoGrid(
-                aircraft: viewModel.aircraft,
-                flightPhase: viewModel.flightPhase,
-                navigation: viewModel.navigation,
-                telemetry: viewModel.telemetry,
-                flightDuration: viewModel.flightDuration,
-                recentEvents: viewModel.recentEvents,
-                connectionStatus: viewModel.connectionStatus
-            )
+            VStack(alignment: .leading, spacing: Theme.Spacing.sectionGap) {
+                dashboardHero
+                DashboardBentoGrid(
+                    aircraft: viewModel.aircraft,
+                    flightPhase: viewModel.flightPhase,
+                    navigation: viewModel.navigation,
+                    telemetry: viewModel.telemetry,
+                    flightDuration: viewModel.flightDuration,
+                    recentEvents: viewModel.recentEvents,
+                    connectionStatus: viewModel.connectionStatus
+                )
+            }
             .padding(Theme.Spacing.dashboardPadding)
         }
+        .background { Theme.dashboardBackground }
         .navigationTitle("Dashboard")
+        .toolbarBackground(.ultraThinMaterial, for: .windowToolbar)
+    }
+
+    private var dashboardHero: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Live Flight")
+                .font(.largeTitle.weight(.bold))
+                .foregroundStyle(.primary)
+            Text(heroSubtitle)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var heroSubtitle: String {
+        let aircraft = viewModel.aircraft.hasSelection
+            ? viewModel.aircraft.aircraftName
+            : "No aircraft loaded"
+        let phase = viewModel.flightPhase.phaseDisplayName
+        return "\(aircraft) · \(phase)"
     }
 }
 
@@ -66,7 +91,8 @@ struct DashboardView: View {
         flightContextEngine: flightContextEngine,
         flightAnalysisEngine: flightAnalysisEngine,
         flightEventEngine: flightEventEngine,
-        flightHistoryEngine: FlightHistoryEngine(flightEventEngine: flightEventEngine)
+        flightHistoryEngine: FlightHistoryEngine(flightEventEngine: flightEventEngine),
+        unitPreferenceService: UnitPreferenceService()
     )
     .frame(width: 1100, height: 720)
 }

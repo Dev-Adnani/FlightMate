@@ -128,6 +128,7 @@ struct FlightHistoryDebugView: View {
         case .aircraftChanged: return "Aircraft Changed"
         case .enteredTaxi: return "Entered Taxi"
         case .takeoffDetected: return "Takeoff Detected"
+        case .enteredClimb: return "Entered Climb"
         case .enteredCruise: return "Entered Cruise"
         case .enteredDescent: return "Entered Descent"
         case .enteredApproach: return "Entered Approach"

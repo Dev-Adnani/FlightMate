@@ -56,8 +56,10 @@ struct FlightHistoryServiceTests {
         state = FlightHistoryService.apply(event: taxi, to: state, maxCompletedHistories: 25)
         let takeoff = makeEvent(type: .takeoffDetected)
         state = FlightHistoryService.apply(event: takeoff, to: state, maxCompletedHistories: 25)
+        let climb = makeEvent(type: .enteredClimb)
+        state = FlightHistoryService.apply(event: climb, to: state, maxCompletedHistories: 25)
 
-        #expect(state.currentHistory?.events == [loaded, taxi, takeoff])
+        #expect(state.currentHistory?.events == [loaded, taxi, takeoff, climb])
     }
 
     // MARK: - Completing a history
@@ -208,33 +210,58 @@ struct FlightHistoryServiceTests {
 
     // MARK: - Takeoff clock (Option A)
 
-    @Test func takeoffTimeAndFlightDurationStartOnlyOnTakeoffDetected() {
+    @Test func takeoffTimeAndFlightDurationStartOnTakeoffDetected() {
         let loaded = makeEvent(type: .aircraftLoaded, aircraftCode: "a320_neo", timestamp: t(0))
         var state = FlightHistoryService.apply(event: loaded, to: .init(), maxCompletedHistories: 25)
         state = FlightHistoryService.apply(
-            event: makeEvent(type: .enteredTaxi, timestamp: t(30)), to: state, maxCompletedHistories: 25
+            event: makeEvent(type: .enteredTaxi, timestamp: t(30), phase: .taxi), to: state, maxCompletedHistories: 25
         )
 
         #expect(state.currentHistory?.takeoffTime == nil)
         #expect(state.currentHistory?.hasStartedFlight == false)
-        #expect(state.currentHistory?.flightDurationSeconds == nil)
+        #expect(state.currentHistory?.flightDurationSeconds(at: t(30)) == nil)
 
-        let takeoff = makeEvent(type: .takeoffDetected, timestamp: t(60))
+        let takeoff = makeEvent(type: .takeoffDetected, timestamp: t(60), phase: .takeoff)
         state = FlightHistoryService.apply(event: takeoff, to: state, maxCompletedHistories: 25)
         #expect(state.currentHistory?.takeoffTime == t(60))
         #expect(state.currentHistory?.hasStartedFlight == true)
-        #expect(state.currentHistory?.flightDurationSeconds == 0)
+        #expect(state.currentHistory?.flightDurationSeconds(at: t(60)) == 0)
 
         state = FlightHistoryService.apply(
-            event: makeEvent(type: .enteredCruise, timestamp: t(360)), to: state, maxCompletedHistories: 25
+            event: makeEvent(type: .enteredCruise, timestamp: t(360), phase: .cruise), to: state, maxCompletedHistories: 25
         )
-        #expect(state.currentHistory?.flightDurationSeconds == 300)
+        #expect(state.currentHistory?.flightDurationSeconds(at: t(360)) == 300)
 
         // Second takeoff (touch-and-go) does not reset the clock.
         state = FlightHistoryService.apply(
-            event: makeEvent(type: .takeoffDetected, timestamp: t(400)), to: state, maxCompletedHistories: 25
+            event: makeEvent(type: .takeoffDetected, timestamp: t(400), phase: .takeoff), to: state, maxCompletedHistories: 25
         )
         #expect(state.currentHistory?.takeoffTime == t(60))
+    }
+
+    @Test func flightClockAlsoStartsWhenTakeoffPhaseIsSkipped() {
+        // Real flights often go taxi → climb without lingering in `.takeoff`,
+        // so `.takeoffDetected` never fires. The clock must still start on
+        // the first airborne analysis (e.g. `.enteredCruise`).
+        var state = FlightHistoryService.apply(
+            event: makeEvent(type: .aircraftLoaded, timestamp: t(0), phase: .parked),
+            to: .init(),
+            maxCompletedHistories: 25
+        )
+        state = FlightHistoryService.apply(
+            event: makeEvent(type: .enteredTaxi, timestamp: t(20), phase: .taxi),
+            to: state,
+            maxCompletedHistories: 25
+        )
+        #expect(state.currentHistory?.hasStartedFlight == false)
+
+        state = FlightHistoryService.apply(
+            event: makeEvent(type: .enteredCruise, timestamp: t(90), phase: .cruise),
+            to: state,
+            maxCompletedHistories: 25
+        )
+        #expect(state.currentHistory?.takeoffTime == t(90))
+        #expect(state.currentHistory?.flightDurationSeconds(at: t(390)) == 300)
     }
 
     @Test func completedFlightDurationUsesEndTimeAfterTakeoff() {
@@ -242,15 +269,15 @@ struct FlightHistoryServiceTests {
             event: makeEvent(type: .aircraftLoaded, timestamp: t(0)), to: .init(), maxCompletedHistories: 25
         )
         state = FlightHistoryService.apply(
-            event: makeEvent(type: .takeoffDetected, timestamp: t(100)), to: state, maxCompletedHistories: 25
+            event: makeEvent(type: .takeoffDetected, timestamp: t(100), phase: .takeoff), to: state, maxCompletedHistories: 25
         )
         state = FlightHistoryService.apply(
-            event: makeEvent(type: .flightCompleted, timestamp: t(700)), to: state, maxCompletedHistories: 25
+            event: makeEvent(type: .flightCompleted, timestamp: t(700), phase: .parked), to: state, maxCompletedHistories: 25
         )
 
         let finished = state.completedHistories[0]
         #expect(finished.takeoffTime == t(100))
-        #expect(finished.flightDurationSeconds == 600)
+        #expect(finished.flightDurationSeconds(at: t(9999)) == 600)
     }
 }
 
@@ -267,9 +294,11 @@ private func makeEvent(
     departureICAO: String? = nil,
     destinationICAO: String? = nil,
     durationSeconds: TimeInterval? = nil,
+    phase: FlightPhase = .unknown,
     metadata: FlightEventMetadata? = nil
 ) -> FlightEvent {
     var analysis = FlightAnalysis.idle
+    analysis.flightPhase = phase
     analysis.resolvedAircraft = aircraftCode.map { ResolvedAircraft(aircraftCode: $0, liveryCode: "", aircraft: nil, livery: nil) }
     analysis.resolvedDeparture = departureICAO.map { ResolvedAirport(icaoCode: $0, runwayIdentifier: nil, airport: nil, runway: nil, country: nil) }
     analysis.resolvedDestination = destinationICAO.map { ResolvedAirport(icaoCode: $0, runwayIdentifier: nil, airport: nil, runway: nil, country: nil) }

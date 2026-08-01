@@ -16,7 +16,8 @@ struct SettingsView: View {
         flightContextEngine: FlightContextEngine,
         flightAnalysisEngine: FlightAnalysisEngine,
         flightEventEngine: FlightEventEngine,
-        flightHistoryEngine: FlightHistoryEngine
+        flightHistoryEngine: FlightHistoryEngine,
+        unitPreferenceService: UnitPreferenceService
     ) {
         _viewModel = StateObject(
             wrappedValue: SettingsViewModel(
@@ -24,7 +25,8 @@ struct SettingsView: View {
                 flightContextEngine: flightContextEngine,
                 flightAnalysisEngine: flightAnalysisEngine,
                 flightEventEngine: flightEventEngine,
-                flightHistoryEngine: flightHistoryEngine
+                flightHistoryEngine: flightHistoryEngine,
+                unitPreferenceService: unitPreferenceService
             )
         )
     }
@@ -42,6 +44,8 @@ struct SettingsView: View {
             switch viewModel.selectedSection {
             case .about:
                 SettingsAboutView()
+            case .units:
+                UnitsSettingsView(unitPreferenceService: viewModel.unitPreferenceService)
             case .developer:
                 DeveloperToolsView(
                     telemetryService: viewModel.telemetryService,
@@ -69,6 +73,7 @@ struct SettingsView: View {
         flightContextEngine: flightContextEngine,
         flightAnalysisEngine: flightAnalysisEngine,
         flightEventEngine: flightEventEngine,
-        flightHistoryEngine: FlightHistoryEngine(flightEventEngine: flightEventEngine)
+        flightHistoryEngine: FlightHistoryEngine(flightEventEngine: flightEventEngine),
+        unitPreferenceService: UnitPreferenceService()
     )
 }

@@ -71,6 +71,18 @@ struct FlightAnalysis: Equatable {
     /// future flight-summary UI.
     var estimatedSessionDurationSeconds: TimeInterval?
 
+    /// Highest altitude observed this session, in feet -- see
+    /// `SessionMetrics.maxAltitudeFeet`.
+    var maxAltitudeFeet: Double?
+
+    /// Highest ground speed observed this session, in knots -- see
+    /// `SessionMetrics.maxGroundSpeedKnots`.
+    var maxGroundSpeedKnots: Double?
+
+    /// Mean ground speed across this session, in knots -- see
+    /// `SessionMetrics.averageGroundSpeedKnots`.
+    var averageGroundSpeedKnots: Double?
+
     /// The nearest known airport to the current position, resolved into
     /// full reference data. `nil` if no position is known yet, or no
     /// bundled airport data is loaded.

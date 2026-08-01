@@ -11,14 +11,15 @@ import Foundation
 
 /// One kind of meaningful, discrete transition in the current flight.
 ///
-/// Deliberately limited to these 11 cases for this milestone -- no Go
+/// Deliberately limited to these 12 cases for this milestone -- no Go
 /// Around, Holding Pattern, Rejected Takeoff, Touchdown Quality, Stable
 /// Approach, or emergency events (Overspeed, Stall, Terrain Warning).
 /// Those require additional signal and belong to future milestones.
 ///
 /// Naming convention: phases the aircraft *dwells in* for a while use
-/// `entered*` (`enteredTaxi`, `enteredCruise`, `enteredDescent`,
-/// `enteredApproach`) so a future `exited*` counterpart reads naturally.
+/// `entered*` (`enteredTaxi`, `enteredClimb`, `enteredCruise`,
+/// `enteredDescent`, `enteredApproach`) so a future `exited*` counterpart
+/// reads naturally.
 /// Genuinely singular, momentary occurrences keep a plain past-tense name
 /// (`takeoffDetected`, `landingDetected`, `flightCompleted`,
 /// `aircraftLoaded`, `aircraftChanged`, `telemetryLost`,
@@ -28,6 +29,7 @@ enum FlightEventType: Equatable, Hashable {
     case aircraftChanged
     case enteredTaxi
     case takeoffDetected
+    case enteredClimb
     case enteredCruise
     case enteredDescent
     case enteredApproach
@@ -45,8 +47,8 @@ enum FlightEventType: Equatable, Hashable {
     /// `FlightEvent` itself.
     var defaultSeverity: FlightEventSeverity {
         switch self {
-        case .aircraftLoaded, .aircraftChanged, .enteredTaxi, .takeoffDetected, .enteredCruise,
-             .enteredDescent, .enteredApproach, .landingDetected, .flightCompleted,
+        case .aircraftLoaded, .aircraftChanged, .enteredTaxi, .takeoffDetected, .enteredClimb,
+             .enteredCruise, .enteredDescent, .enteredApproach, .landingDetected, .flightCompleted,
              .telemetryLost, .telemetryRecovered:
             return .info
         }

@@ -38,8 +38,12 @@ struct FlightEventEngineTests {
         // driven FlightContext update (aeroflySession itself is unchanged;
         // only the mocked resolution of it changes), must be detected as
         // a live aircraftChanged event.
+        // The aircraft-identity debounce (FlightEventDetectionService) only
+        // confirms a change once the new code has been observed over two
+        // consecutive samples -- the first is just a pending candidate.
         domainResolver.resolvedSessionToReturn = Self.resolvedSession(aircraftCode: "c172")
         listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,11.0,314.1,0.2".utf8))
+        listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,11.5,314.1,0.2".utf8))
 
         try await waitUntil { eventEngine.events.map { $0.type } == [.aircraftLoaded, .aircraftChanged] }
         #expect(eventEngine.events.last?.analysis.resolvedAircraft?.aircraftCode == "c172")
@@ -52,6 +56,7 @@ struct FlightEventEngineTests {
 
         domainResolver.resolvedSessionToReturn = Self.resolvedSession(aircraftCode: "c172")
         listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,11.0,314.1,0.2".utf8))
+        listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,11.5,314.1,0.2".utf8))
         try await waitUntil { eventEngine.events.count == 2 }
 
         let ids = Set(eventEngine.events.map(\.eventId))
@@ -72,10 +77,12 @@ struct FlightEventEngineTests {
 
         domainResolver.resolvedSessionToReturn = Self.resolvedSession(aircraftCode: "c172")
         listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,11.0,314.1,0.2".utf8))
+        listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,11.5,314.1,0.2".utf8))
         try await waitUntil { collector.events.count == 1 }
 
         domainResolver.resolvedSessionToReturn = Self.resolvedSession(aircraftCode: "a320_neo")
         listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,12.0,314.1,0.2".utf8))
+        listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,12.5,314.1,0.2".utf8))
         try await waitUntil { collector.events.count == 2 }
 
         // 3 events have fired in total (aircraftLoaded + 2 aircraftChanged),

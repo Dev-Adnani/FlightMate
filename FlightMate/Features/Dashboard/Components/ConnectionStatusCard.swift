@@ -24,7 +24,6 @@ struct ConnectionStatusCard: DashboardCard {
         CardContainer(title: cardTitle, systemImage: cardIcon) {
             VStack(alignment: .leading, spacing: Theme.Spacing.rowGap) {
                 StatusBadge(level: model.overallLevel, label: model.overallLabel)
-                    .font(.headline)
 
                 Divider()
 

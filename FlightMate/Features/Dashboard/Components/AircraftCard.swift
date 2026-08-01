@@ -2,17 +2,12 @@
 //  AircraftCard.swift
 //  FlightMate
 //
-//  Dashboard card: "What aircraft am I flying?"
+//  Dashboard card: what aircraft am I flying?
 //
 
 import SwiftUI
 
 /// Shows the currently selected aircraft, category, and livery.
-///
-/// Purely presentational -- every field comes straight off
-/// `AircraftCardModel`; no lookups, formatting decisions, or resolution
-/// logic happen here. The preview image is whatever
-/// `AircraftAssetManager` already resolved into `model.asset`.
 struct AircraftCard: DashboardCard {
     let model: AircraftCardModel
 
@@ -21,19 +16,24 @@ struct AircraftCard: DashboardCard {
 
     var body: some View {
         CardContainer(title: cardTitle, systemImage: cardIcon) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .top, spacing: 14) {
                 AircraftAssetImage(asset: model.asset, isEmphasized: model.hasSelection)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 52, height: 52)
+                    .background {
+                        RoundedRectangle(cornerRadius: Theme.Layout.iconWellCornerRadius, style: .continuous)
+                            .fill(Theme.Colors.accent.opacity(model.hasSelection ? 0.16 : 0.08))
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Layout.iconWellCornerRadius, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(model.aircraftName)
                         .font(.title3.weight(.semibold))
                         .lineLimit(2)
 
                     if let code = model.aeroflyCode {
                         Text(code)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
+                            .font(Theme.Typography.monoCaption)
+                            .foregroundStyle(Theme.Colors.accentMuted)
                     }
 
                     if let category = model.categoryDisplayName {
@@ -66,5 +66,6 @@ struct AircraftCard: DashboardCard {
 #Preview {
     AircraftCard(model: .noSelection)
         .padding()
-        .frame(width: 320)
+        .frame(width: 320, height: 180)
+        .background(Theme.dashboardBackground)
 }

@@ -67,11 +67,13 @@ extension FlightAnalysisService {
             ])
         }
 
-        if groundSpeedKts <= FlightAnalysisConstants.parkedSpeedKt, level {
+        if groundSpeedKts <= FlightAnalysisConstants.parkedSpeedKt, level,
+           canTransitionToGroundPhase(from: inputs.previousPhase) {
             return (.parked, ["Ground speed near zero", "Not climbing or descending"])
         }
 
-        if groundSpeedKts <= FlightAnalysisConstants.taxiUpperBoundKt, level {
+        if groundSpeedKts <= FlightAnalysisConstants.taxiUpperBoundKt, level,
+           canTransitionToGroundPhase(from: inputs.previousPhase) {
             return (.taxi, ["Ground speed in taxi range", "Level with ground"])
         }
 
@@ -91,8 +93,18 @@ extension FlightAnalysisService {
         // ground roll with an unresolved aircraft (whose cruise altitude
         // is unknown, and therefore can't gate cruise below) isn't
         // swallowed by cruise's own "altitude unknown" escape hatch.
-        if level, groundSpeedKts > FlightAnalysisConstants.taxiUpperBoundKt, !inputs.previousPhase.isAirborne {
-            return (.takeoff, ["Ground speed above taxi range", "Not yet climbing"])
+        //
+        // `previousPhase != .unknown` additionally requires that we've
+        // actually *observed* the aircraft on the ground before calling
+        // this a takeoff -- `.unknown` only ever means "no prior
+        // analysis exists" (app just launched / just reconnected), not
+        // "was on the ground." Without this, connecting to Aerofly while
+        // already cruising or descending produces a false "Takeoff"
+        // event on the very first sample (see the cold-start rule below
+        // for what a genuine cold start falls back to instead).
+        if level, groundSpeedKts > FlightAnalysisConstants.taxiUpperBoundKt,
+           !inputs.previousPhase.isAirborne, inputs.previousPhase != .unknown {
+            return (.takeoff, ["Ground speed above taxi range", "Not yet climbing", "Previously observed on the ground"])
         }
 
         if level, groundSpeedKts > FlightAnalysisConstants.taxiUpperBoundKt,
@@ -103,6 +115,25 @@ extension FlightAnalysisService {
                     ? "Aircraft cruise altitude unknown"
                     : "At or above cruise altitude threshold",
                 "Ground speed consistent with cruise"
+            ])
+        }
+
+        // Cold start, still ambiguous: level and fast, but below the
+        // cruise-altitude threshold, with no prior observation at all
+        // (`previousPhase == .unknown`) to say whether this is a genuine
+        // ground roll or level flight that simply never reaches this
+        // aircraft's cruise altitude (pattern work, a GA aircraft's
+        // low-altitude cruise, a step climb). A single sample cannot
+        // disambiguate the two -- but assuming "already airborne" is the
+        // safer default: a false "Takeoff" here can get permanently
+        // stuck (nothing about continuing level flight below cruise
+        // altitude would ever re-trigger this rule), whereas assuming
+        // cruise self-corrects immediately via the climb/descent rules
+        // the moment the aircraft's vertical speed actually changes.
+        if inputs.previousPhase == .unknown, level, groundSpeedKts > FlightAnalysisConstants.taxiUpperBoundKt {
+            return (.cruise, [
+                "No prior observation to compare against",
+                "Ground speed and level flight consistent with already being airborne"
             ])
         }
 
@@ -131,6 +162,32 @@ extension FlightAnalysisService {
         // an unresolved aircraft and ambiguous altitude/speed) -- retain
         // the previous phase rather than guessing a fictitious transition.
         return (inputs.previousPhase, ["No clear phase transition detected; retaining previous phase"])
+    }
+
+    // MARK: - Ground-phase reachability
+
+    /// Whether `previousPhase` is a plausible predecessor for `.parked`/
+    /// `.taxi`. Deliberately excludes `.cruise`, `.climb`, and `.descent`:
+    /// an aircraft that was genuinely at cruise, climbing, or descending
+    /// a moment ago cannot plausibly be on the ground the very next
+    /// sample, so a near-zero ground-speed reading in that situation is
+    /// far more likely a bad or frozen telemetry sample than an actual
+    /// landing. Misclassifying it as `.parked` would prematurely end the
+    /// flight (`FlightEventDetectionService.detectFlightCompleted` fires
+    /// on any transition into `.parked` after having been airborne) and
+    /// silently drop every event for the rest of the real flight. Falling
+    /// through to the "retain previous phase" fallback below is the
+    /// correct, conservative response to what is almost certainly noise.
+    /// `.approach` and `.landing` remain valid predecessors since
+    /// decelerating through those phases is the normal path to actually
+    /// reaching the ground.
+    private static func canTransitionToGroundPhase(from previousPhase: FlightPhase) -> Bool {
+        switch previousPhase {
+        case .cruise, .climb, .descent:
+            return false
+        case .unknown, .parked, .taxi, .takeoff, .approach, .landing:
+            return true
+        }
     }
 
     // MARK: - Cruise altitude helpers

@@ -70,8 +70,15 @@ struct ProcedureStepGuideView: View {
                     .font(Theme.Typography.caption)
                     .foregroundStyle(.secondary)
             }
-            Text(step.title)
-                .font(Theme.Typography.title)
+            HStack(spacing: Theme.Spacing.rowGap) {
+                Text(step.title)
+                    .font(Theme.Typography.title)
+                if step.verification.mode == .automatic {
+                    Label("Auto-verifies", systemImage: "wand.and.stars")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.Colors.accent)
+                }
+            }
         }
     }
 
@@ -122,14 +129,15 @@ struct ProcedureStepGuideView: View {
         }
         .padding(Theme.Spacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
+        .background {
             RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius, style: .continuous)
-                .fill(Color.primary.opacity(0.035))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
-        )
+                .fill(.regularMaterial)
+                .overlay {
+                    RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius, style: .continuous)
+                        .strokeBorder(Theme.Colors.cardStroke, lineWidth: 1)
+                }
+                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 3)
+        }
     }
 
     private func callout(title: String, text: String, systemImage: String) -> some View {
@@ -140,13 +148,14 @@ struct ProcedureStepGuideView: View {
             }
         } icon: {
             Image(systemName: systemImage)
+                .foregroundStyle(Theme.Colors.accent)
         }
         .foregroundStyle(.secondary)
         .padding(Theme.Spacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: Theme.Layout.controlCornerRadius, style: .continuous)
-                .fill(Color.primary.opacity(0.04))
+                .fill(Theme.Colors.accent.opacity(0.08))
         )
     }
 

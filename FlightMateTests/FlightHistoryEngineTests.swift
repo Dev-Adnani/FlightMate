@@ -66,7 +66,11 @@ struct FlightHistoryEngineTests {
         try await waitUntil { historyEngine.currentHistory?.currentAircraft?.aircraftCode == "a320_neo" }
 
         domainResolver.resolvedSessionToReturn = Self.resolvedSession(aircraftCode: "c172")
+        // The aircraft-identity debounce (FlightEventDetectionService) only
+        // confirms a change once the new code has been observed over two
+        // consecutive samples -- the first is just a pending candidate.
         listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,12.0,314.1,0.2".utf8))
+        listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,12.5,314.1,0.2".utf8))
 
         try await waitUntil { historyEngine.completedHistories.count == 1 }
         #expect(historyEngine.completedHistories.first?.status == .aborted)
@@ -87,6 +91,7 @@ struct FlightHistoryEngineTests {
 
         domainResolver.resolvedSessionToReturn = Self.resolvedSession(aircraftCode: "c172")
         listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,12.0,314.1,0.2".utf8))
+        listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,12.5,314.1,0.2".utf8))
         try await waitUntil { historyEngine.completedHistories.count == 1 }
 
         let secondId = try #require(historyEngine.currentHistory?.id)
@@ -105,10 +110,12 @@ struct FlightHistoryEngineTests {
 
         domainResolver.resolvedSessionToReturn = Self.resolvedSession(aircraftCode: "aircraft-1")
         listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,11.0,314.1,0.2".utf8))
+        listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,11.5,314.1,0.2".utf8))
         try await waitUntil { historyEngine.completedHistories.count == 1 }
 
         domainResolver.resolvedSessionToReturn = Self.resolvedSession(aircraftCode: "aircraft-2")
         listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,12.0,314.1,0.2".utf8))
+        listener.onPacketReceived?(Data("XGPSAerofly FS 4,72.8754,19.0818,12.5,314.1,0.2".utf8))
         try await waitUntil { historyEngine.completedHistories.first?.currentAircraft?.aircraftCode == "aircraft-1" }
 
         // 2 histories have been aborted in total (aircraft-0, aircraft-1),

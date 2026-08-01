@@ -16,8 +16,11 @@ import Foundation
 ///
 /// **Option A semantics:** the timeline begins at aircraft load so taxi
 /// and preflight events are preserved, but the *flight clock*
-/// (`takeoffTime` / `flightDurationSeconds`) starts only on
-/// `takeoffDetected`. UI should never call the app process a "session."
+/// (`takeoffTime` / `flightDurationSeconds`) starts on the first
+/// `takeoffDetected` **or** the first event whose analysis already
+/// reports an airborne phase (so a skipped takeoff phase — taxi → climb
+/// — still starts the clock). UI should never call the app process a
+/// "session."
 ///
 /// This is deliberately *not* a replay system, persistence, or SwiftData
 /// model -- it's an in-memory timeline only. It reuses `FlightEvent`
@@ -61,9 +64,12 @@ struct FlightHistory: Identifiable, Equatable {
     /// `FlightHistoryService`).
     private(set) var endTime: Date?
 
-    /// When `takeoffDetected` first fired on this history -- `nil` until
-    /// then. The flight clock and "current flight" identity start here,
-    /// not at `startTime` (aircraft load).
+    /// When `takeoffDetected` first fired on this history -- or, if the
+    /// takeoff *phase* was skipped (common: taxi/parked → climb/cruise
+    /// without lingering in `.takeoff`), the timestamp of the first event
+    /// whose analysis already reports an airborne phase. `nil` until then.
+    /// The flight clock and "current flight" identity start here, not at
+    /// `startTime` (aircraft load).
     private(set) var takeoffTime: Date?
 
     /// The aircraft flying this flight, if known -- read from the most
@@ -79,19 +85,49 @@ struct FlightHistory: Identifiable, Equatable {
     /// True once takeoff has been recorded -- the unit of "one flight."
     var hasStartedFlight: Bool { takeoffTime != nil }
 
-    /// Elapsed time from takeoff to the latest event (or `endTime` when
-    /// finalized). `nil` until takeoff. Snapshot as-of-last-event -- not a
-    /// live ticking clock (histories only advance on `FlightEvent`s).
+    /// Elapsed time from takeoff to now (while `.active`) or to `endTime`
+    /// when finalized. `nil` until the flight clock has started.
+    ///
+    /// While active this is a live value (`Date()`), so callers that need
+    /// the UI to tick must refresh on their own cadence (see
+    /// `FlightDurationCard`'s `TimelineView`). Finalized histories are
+    /// stable snapshots.
     var flightDurationSeconds: TimeInterval? {
+        flightDurationSeconds(at: Date())
+    }
+
+    /// Same as ``flightDurationSeconds``, evaluated at an explicit
+    /// instant -- used by live UI (`TimelineView`) and tests.
+    func flightDurationSeconds(at now: Date) -> TimeInterval? {
         guard let takeoffTime else { return nil }
-        let end = endTime ?? events.last?.timestamp
-        guard let end else { return nil }
+        let end: Date
+        if let endTime {
+            end = endTime
+        } else if status == .active {
+            end = now
+        } else if let last = events.last?.timestamp {
+            end = last
+        } else {
+            return nil
+        }
         return max(0, end.timeIntervalSince(takeoffTime))
     }
 
     /// Analysis-derived session metrics duration (aircraft-load based).
     /// Prefer `flightDurationSeconds` for product UI (takeoff → end).
     var durationSeconds: TimeInterval? { events.last?.analysis.estimatedSessionDurationSeconds }
+
+    /// Highest altitude reached this flight, in feet -- read off the most
+    /// recent event's snapshot, same rationale as `currentAircraft`.
+    var maxAltitudeFeet: Double? { events.last?.analysis.maxAltitudeFeet }
+
+    /// Highest ground speed reached this flight, in knots -- same
+    /// rationale as `currentAircraft`.
+    var maxGroundSpeedKnots: Double? { events.last?.analysis.maxGroundSpeedKnots }
+
+    /// Mean ground speed across this flight, in knots -- same rationale
+    /// as `currentAircraft`.
+    var averageGroundSpeedKnots: Double? { events.last?.analysis.averageGroundSpeedKnots }
 
     /// Seeds a brand-new, `.active` history with its very first timeline
     /// entry. Only ever called by `FlightHistoryService`.
@@ -101,17 +137,17 @@ struct FlightHistory: Identifiable, Equatable {
         self.events = [firstEvent]
         self.status = .active
         self.endTime = nil
-        self.takeoffTime = firstEvent.type == .takeoffDetected ? firstEvent.timestamp : nil
+        self.takeoffTime = Self.flightClockStart(for: firstEvent)
     }
 
     /// Returns a copy with `event` appended to the end of the timeline.
     /// Every existing entry is left untouched. Latches `takeoffTime` on the
-    /// first `takeoffDetected` only (touch-and-goes keep the original clock).
+    /// first qualifying event only (touch-and-goes keep the original clock).
     func appending(_ event: FlightEvent) -> FlightHistory {
         var copy = self
         copy.events.append(event)
-        if event.type == .takeoffDetected, copy.takeoffTime == nil {
-            copy.takeoffTime = event.timestamp
+        if copy.takeoffTime == nil, let start = Self.flightClockStart(for: event) {
+            copy.takeoffTime = start
         }
         return copy
     }
@@ -124,5 +160,22 @@ struct FlightHistory: Identifiable, Equatable {
         copy.status = status
         copy.endTime = time
         return copy
+    }
+
+    /// Instant the flight clock should start for `event`, if any.
+    ///
+    /// Prefer an explicit `.takeoffDetected`. If the takeoff phase was
+    /// skipped (phase machine went taxi → climb/cruise), fall back to the
+    /// first event whose analysis already says the aircraft is airborne --
+    /// otherwise the Duration card stays on "Waiting for takeoff" for the
+    /// entire cruise.
+    private static func flightClockStart(for event: FlightEvent) -> Date? {
+        if event.type == .takeoffDetected {
+            return event.timestamp
+        }
+        if event.analysis.flightPhase.isAirborne {
+            return event.timestamp
+        }
+        return nil
     }
 }

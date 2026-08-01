@@ -10,15 +10,28 @@ import SwiftUI
 struct ProcedureOverviewView: View {
     let procedure: AircraftProcedure
     let completedStepIDs: Set<String>
+    let currentFlightPhase: FlightPhase
+    let suggestedSectionID: String?
     let onToggle: (String) -> Void
     let onOpenStep: (Int) -> Void
     let onBack: () -> Void
+    let onRestart: () -> Void
+
+    @State private var showingRestartConfirmation = false
 
     private var flatSteps: [ProcedureStep] { procedure.allStepsInOrder }
+
+    private var suggestedSection: ProcedureSection? {
+        guard let suggestedSectionID else { return nil }
+        return procedure.orderedSections.first { $0.id == suggestedSectionID }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+            if let suggestedSection {
+                suggestionBanner(for: suggestedSection)
+            }
             Divider()
             List {
                 ForEach(procedure.orderedSections) { section in
@@ -27,19 +40,51 @@ struct ProcedureOverviewView: View {
                             stepRow(step)
                         }
                     } header: {
-                        HStack {
-                            Text(section.title)
-                            if section.isOptional {
-                                Text("Optional")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+                        sectionHeader(section)
                     }
                 }
             }
             .listStyle(.inset)
         }
+    }
+
+    private func sectionHeader(_ section: ProcedureSection) -> some View {
+        HStack {
+            Text(section.title)
+            if section.isOptional {
+                Text("Optional")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            if section.id == suggestedSectionID {
+                Label("Now", systemImage: "location.fill")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Theme.color(for: .healthy))
+            }
+        }
+    }
+
+    private func suggestionBanner(for section: ProcedureSection) -> some View {
+        HStack(spacing: Theme.Spacing.contentGap) {
+            Image(systemName: "location.fill")
+                .foregroundStyle(Theme.color(for: .healthy))
+            Text("Currently \(currentFlightPhase.displayName.lowercased()) — suggested: \(section.title)")
+                .font(Theme.Typography.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button("Jump to it") {
+                if let index = flatSteps.firstIndex(where: { step in
+                    section.orderedSteps.contains(where: { $0.id == step.id }) && !completedStepIDs.contains(step.id)
+                }) {
+                    onOpenStep(index)
+                }
+            }
+            .buttonStyle(.borderless)
+            .font(Theme.Typography.caption.weight(.semibold))
+        }
+        .padding(.horizontal, Theme.Spacing.dashboardPadding)
+        .padding(.vertical, Theme.Spacing.contentGap / 2)
+        .background(Theme.color(for: .healthy).opacity(0.08))
     }
 
     private var header: some View {
@@ -53,6 +98,23 @@ struct ProcedureOverviewView: View {
                 Text("\(completedCount)/\(flatSteps.count) done")
                     .font(Theme.Typography.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
+                Button {
+                    showingRestartConfirmation = true
+                } label: {
+                    Label("Restart", systemImage: "arrow.counterclockwise")
+                }
+                .buttonStyle(.borderless)
+                .disabled(completedCount == 0)
+                .confirmationDialog(
+                    "Restart this checklist?",
+                    isPresented: $showingRestartConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Restart", role: .destructive, action: onRestart)
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This clears all completed steps for \"\(procedure.title)\".")
+                }
             }
 
             DetailHeader(
@@ -91,10 +153,17 @@ struct ProcedureOverviewView: View {
                 onOpenStep(index)
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(step.title)
-                        .font(Theme.Typography.body.weight(.medium))
-                        .foregroundStyle(done ? .secondary : .primary)
-                        .strikethrough(done)
+                    HStack(spacing: 6) {
+                        Text(step.title)
+                            .font(Theme.Typography.body.weight(.medium))
+                            .foregroundStyle(done ? .secondary : .primary)
+                            .strikethrough(done)
+                        if step.verification.mode == .automatic {
+                            Text("Auto")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Theme.Colors.accent)
+                        }
+                    }
                     Text(step.location.panel)
                         .font(Theme.Typography.caption)
                         .foregroundStyle(.tertiary)

@@ -63,6 +63,8 @@ final class MovingMapViewModel: ObservableObject {
     private let minimumPositionUpdateInterval: TimeInterval
     private let now: () -> Date
     private var lastPositionUpdateTimestamp: Date?
+    private var hasLiveTelemetryPosition = false
+    private var latestAnalysis: FlightAnalysis?
     private var cancellables: Set<AnyCancellable> = []
 
     /// - Parameters:
@@ -127,8 +129,27 @@ final class MovingMapViewModel: ObservableObject {
         selectedAirport = nil
     }
 
+    /// Only renders the aircraft once telemetry is genuinely live -- see
+    /// `FlightContext.hasLiveTelemetryPosition`. Deliberately does *not*
+    /// fall back to `bestKnownPosition`'s pre-UDP session position: doing
+    /// so previously made the aircraft pin (and the initial auto-center)
+    /// appear the instant Aerofly's session file was parsed, often from a
+    /// stale previous flight, well before the aircraft was actually
+    /// broadcasting telemetry.
     private func handle(_ context: FlightContext) {
-        guard let position = context.bestKnownPosition else { return }
+        let wasLive = hasLiveTelemetryPosition
+        hasLiveTelemetryPosition = context.hasLiveTelemetryPosition
+
+        // The "nearest" pin depends on `bestKnownPosition`, which can be
+        // pre-UDP -- refresh annotations the instant telemetry goes live
+        // so a stale nearest airport doesn't linger, and so a nearest pin
+        // computed *while* live doesn't disappear just because this
+        // context update happened to arrive before the next analysis one.
+        if hasLiveTelemetryPosition != wasLive, let latestAnalysis {
+            handle(latestAnalysis)
+        }
+
+        guard hasLiveTelemetryPosition, let position = context.bestKnownPosition else { return }
 
         let timestamp = now()
         if let lastPositionUpdateTimestamp,
@@ -141,11 +162,19 @@ final class MovingMapViewModel: ObservableObject {
         aircraftHeadingDegrees = context.headingDegreesTrue
     }
 
+    /// Departure/destination pins come from the session's own declared
+    /// route and are legitimate to show pre-flight. The "nearest" pin is
+    /// a live geographic query against the aircraft's current position,
+    /// though -- only ever shown once telemetry is genuinely live, so it
+    /// doesn't surface a stale nearest airport from a previous flight's
+    /// position before this one has started broadcasting.
     private func handle(_ analysis: FlightAnalysis) {
+        latestAnalysis = analysis
+
         airportAnnotations = Self.dedupedAnnotations(
             departure: analysis.resolvedDeparture,
             destination: analysis.resolvedDestination,
-            nearest: analysis.nearestAirport
+            nearest: hasLiveTelemetryPosition ? analysis.nearestAirport : nil
         )
 
         if let departure = analysis.resolvedDeparture?.airport,

@@ -33,19 +33,6 @@ struct FlightMateApp: App {
     /// `AppServices`.
     @StateObject private var services = AppServices()
 
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
-
     var body: some Scene {
         WindowGroup {
             // Unit tests run inside this host app via `TEST_HOST`. Skip the
@@ -56,15 +43,17 @@ struct FlightMateApp: App {
             } else {
                 ContentView(
                     telemetryService: services.telemetryService,
-                    flightContextEngine: services.flightContextEngine,
                     flightAnalysisEngine: services.flightAnalysisEngine,
+                    flightContextEngine: services.flightContextEngine,
                     flightEventEngine: services.flightEventEngine,
                     flightHistoryEngine: services.flightHistoryEngine,
                     mapTrailService: services.mapTrailService,
                     aircraftAssetManager: services.aircraftAssetManager,
                     aircraftProvider: services.aircraftService,
                     airportProvider: services.airportService,
-                    procedureProvider: services.procedureService
+                    procedureProvider: services.procedureService,
+                    unitPreferenceService: services.unitPreferenceService,
+                    flightHistoryPersistenceService: services.flightHistoryPersistenceService
                 )
                 .task {
                     do {
@@ -79,6 +68,7 @@ struct FlightMateApp: App {
                 }
             }
         }
-        .modelContainer(sharedModelContainer)
+        .modelContainer(services.persistenceService.modelContainer)
+        .defaultSize(width: 1180, height: 760)
     }
 }
