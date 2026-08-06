@@ -12,6 +12,7 @@ import Foundation
 enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     case about
     case units
+    case cameraShake
     case developer
 
     var id: String { rawValue }
@@ -20,6 +21,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .about: return "About"
         case .units: return "Units"
+        case .cameraShake: return "Camera shake"
         case .developer: return "Developer"
         }
     }
@@ -28,6 +30,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .about: return "info.circle"
         case .units: return "ruler"
+        case .cameraShake: return "move.3d"
         case .developer: return "hammer"
         }
     }

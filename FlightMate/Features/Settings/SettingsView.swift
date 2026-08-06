@@ -46,6 +46,8 @@ struct SettingsView: View {
                 SettingsAboutView()
             case .units:
                 UnitsSettingsView(unitPreferenceService: viewModel.unitPreferenceService)
+            case .cameraShake:
+                CameraShakeView()
             case .developer:
                 DeveloperToolsView(
                     telemetryService: viewModel.telemetryService,

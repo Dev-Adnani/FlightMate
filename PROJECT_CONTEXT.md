@@ -23,6 +23,9 @@ Help users learn aviation and improve their flight simulation experience.
 - Flight Setup (Startgerät-inspired): live METAR, SimBrief OFP import,
   and optional user-gated apply of weather/route into Aerofly’s `main.mcf`
   for the next simulator launch
+- Camera shake tweaks: apply forum/community CameraPilot Kf/Df (feel)
+  presets into the **user** `aircraft/<code>/parameters.tmd` only
+  (never Steam install). Touchdown `.wav` / SoundObject packs are out of scope.
 
 ## What FlightMate IS NOT
 
