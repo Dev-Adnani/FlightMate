@@ -53,7 +53,11 @@ struct FlightMateApp: App {
                     airportProvider: services.airportService,
                     procedureProvider: services.procedureService,
                     unitPreferenceService: services.unitPreferenceService,
-                    flightHistoryPersistenceService: services.flightHistoryPersistenceService
+                    flightHistoryPersistenceService: services.flightHistoryPersistenceService,
+                    liveWeatherService: services.liveWeatherService,
+                    simBriefService: services.simBriefService,
+                    simBriefPreferenceService: services.simBriefPreferenceService,
+                    aeroflyMcfWriter: services.aeroflyMcfWriter
                 )
                 .task {
                     do {

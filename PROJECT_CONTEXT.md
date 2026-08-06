@@ -20,15 +20,21 @@ Help users learn aviation and improve their flight simulation experience.
 - Aircraft-specific guided procedures (checklists)
 - Airport information
 - Flight history
+- Flight Setup (Startgerät-inspired): live METAR, SimBrief OFP import,
+  and optional user-gated apply of weather/route into Aerofly’s `main.mcf`
+  for the next simulator launch
 
 ## What FlightMate IS NOT
 
 - Flight simulator
 - ATC replacement
 - Moving map clone
-- Weather injector
+- Always-on / silent weather or mission rewriter (writes to `main.mcf` are
+  explicit, user-triggered, and require Aerofly to be quit first)
 - Autopilot
 - Plugin
+- A bundled third-party Electron/CLI tool (e.g. Startgerät); open-source
+  clones under `Reference/` are for studying and porting algorithms only
 
 ## Architecture
 
@@ -44,6 +50,16 @@ SwiftData
 Feature-first architecture
 
 Dependency Injection
+
+### Flight Setup write path (optional, user-gated)
+
+`LiveWeatherService` and `SimBriefService` fetch external METAR / OFP data
+for display and editing in **Flight Setup**. When the user chooses
+**Apply to Aerofly**, `AeroflyMcfWriter` patches weather and/or navigation
+into `main.mcf` (backup first). Aerofly must be quit; it reads the file on
+the next launch. Reads remain owned by `AeroflySessionService`; writes never
+go through `AeroflySessionMapper`. Algorithms were ported from fboes
+Startgerät / Missionsgerät (see `THIRD_PARTY.md`).
 
 ### Two independent live sources, and their precedence
 

@@ -23,6 +23,10 @@ struct ContentView: View {
     let procedureProvider: ProcedureProviding
     let unitPreferenceService: UnitPreferenceService
     let flightHistoryPersistenceService: FlightHistoryPersistenceService
+    let liveWeatherService: LiveWeatherService
+    let simBriefService: SimBriefService
+    let simBriefPreferenceService: SimBriefPreferenceService
+    let aeroflyMcfWriter: AeroflyMcfWriting
 
     var body: some View {
         NavigationSplitView {
@@ -37,6 +41,7 @@ struct ContentView: View {
         List(selection: $selection) {
             Section("Fly") {
                 sidebarRow(.dashboard)
+                sidebarRow(.flightSetup)
                 sidebarRow(.movingMap)
                 sidebarRow(.procedures)
             }
@@ -108,6 +113,15 @@ struct ContentView: View {
                 aircraftAssetManager: aircraftAssetManager,
                 unitPreferenceService: unitPreferenceService
             )
+        case .flightSetup:
+            FlightSetupView(
+                flightContextEngine: flightContextEngine,
+                flightAnalysisEngine: flightAnalysisEngine,
+                liveWeatherService: liveWeatherService,
+                simBriefService: simBriefService,
+                simBriefPreferenceService: simBriefPreferenceService,
+                mcfWriter: aeroflyMcfWriter
+            )
         case .movingMap:
             MovingMapView(
                 flightContextEngine: flightContextEngine,
@@ -178,6 +192,10 @@ struct ContentView: View {
         flightHistoryPersistenceService: FlightHistoryPersistenceService(
             flightHistoryEngine: flightHistoryEngine,
             persistenceService: persistenceService
-        )
+        ),
+        liveWeatherService: LiveWeatherService(),
+        simBriefService: SimBriefService(preferences: SimBriefPreferenceService()),
+        simBriefPreferenceService: SimBriefPreferenceService(),
+        aeroflyMcfWriter: AeroflyMcfWriter()
     )
 }

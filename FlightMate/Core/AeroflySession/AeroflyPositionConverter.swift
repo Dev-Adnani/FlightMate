@@ -54,4 +54,25 @@ enum AeroflyPositionConverter {
         let latitude = phi * 180 / Double.pi
         return GeoCoordinate(latitude: latitude, longitude: longitude)
     }
+
+    /// Inverse of `coordinate(fromPosition:)` — WGS84 geodetic to ECEF meters.
+    /// Ported from Missionsgerät `MainMcfExport.convertCoordinates`.
+    static func position(
+        latitude: Double,
+        longitude: Double,
+        altitudeMeters: Double = 0
+    ) -> [Double] {
+        let a = 6_378_137.0
+        let f = flattening
+        let e2 = f * (2 - f)
+        let lat = latitude * Double.pi / 180
+        let lon = longitude * Double.pi / 180
+        let sinLat = sin(lat)
+        let cosLat = cos(lat)
+        let n = a / (1 - e2 * sinLat * sinLat).squareRoot()
+        let x = (n + altitudeMeters) * cosLat * cos(lon)
+        let y = (n + altitudeMeters) * cosLat * sin(lon)
+        let z = (n * (1 - e2) + altitudeMeters) * sinLat
+        return [x, y, z]
+    }
 }

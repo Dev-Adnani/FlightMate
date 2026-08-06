@@ -18,6 +18,7 @@ import Foundation
 /// `NavigationDestination.allCases` generically.
 enum NavigationDestination: String, CaseIterable, Identifiable, Hashable {
     case dashboard
+    case flightSetup
     case movingMap
     case flightHistory
     case airports
@@ -31,6 +32,7 @@ enum NavigationDestination: String, CaseIterable, Identifiable, Hashable {
     var title: String {
         switch self {
         case .dashboard: return "Dashboard"
+        case .flightSetup: return "Flight Setup"
         case .movingMap: return "Moving Map"
         case .flightHistory: return "Flight History"
         case .airports: return "Airports"
@@ -44,6 +46,7 @@ enum NavigationDestination: String, CaseIterable, Identifiable, Hashable {
     var systemImage: String {
         switch self {
         case .dashboard: return "gauge.with.dots.needle.67percent"
+        case .flightSetup: return "airplane.departure"
         case .movingMap: return "map"
         case .flightHistory: return "clock.arrow.trianglehead.counterclockwise.rotate.90"
         case .airports: return "building.2"

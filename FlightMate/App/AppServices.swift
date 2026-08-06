@@ -39,6 +39,10 @@ final class AppServices: ObservableObject {
     let unitPreferenceService: UnitPreferenceService
     let persistenceService: PersistenceService
     let flightHistoryPersistenceService: FlightHistoryPersistenceService
+    let simBriefPreferenceService: SimBriefPreferenceService
+    let liveWeatherService: LiveWeatherService
+    let simBriefService: SimBriefService
+    let aeroflyMcfWriter: AeroflyMcfWriting
 
     init() {
         let telemetryService = TelemetryService()
@@ -91,5 +95,11 @@ final class AppServices: ObservableObject {
             flightContextEngine: flightContextEngine,
             flightHistoryEngine: flightHistoryEngine
         )
+
+        let simBriefPreferences = SimBriefPreferenceService()
+        simBriefPreferenceService = simBriefPreferences
+        liveWeatherService = LiveWeatherService()
+        simBriefService = SimBriefService(preferences: simBriefPreferences)
+        aeroflyMcfWriter = AeroflyMcfWriter()
     }
 }
